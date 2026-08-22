@@ -1,0 +1,43 @@
+{
+	"schemaVersion": 1,
+	"id": "fluentui",
+	"version": "${version}",
+	"name": "FluentUI",
+	"description": "一个fabricMc UI框架，提节点树、自动布局引擎、交互管理和一些封装。",
+	"authors": [
+		"XianFish"
+	],
+	"contact": {
+		"homepage": "",
+		"sources": "https://github.com/xianfish33/FluentUI-MC"
+	},
+	"license": "EPL-2.0",
+	"icon": "assets/fluentui/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"xianfish.fluentui.FluentUI"
+		],
+		"client": [
+			"xianfish.fluentui.client.FluentUIClient"
+		]
+	},
+	"custom": {
+		"modmenu": {
+			"badges": ["library"]
+		}
+	},
+	"mixins": [
+		"fluentui.mixins.json",
+		{
+			"config": "fluentui.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
