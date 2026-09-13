@@ -3,7 +3,7 @@ package xianfish.fluentui.client.ui.component;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import xianfish.fluentui.client.ui.animation.Animator;
 import xianfish.fluentui.client.ui.animation.Easing;
-import xianfish.fluentui.client.ui.element.Colors;
+import xianfish.fluentui.client.ui.util.Colors;
 import xianfish.fluentui.client.ui.element.TooltippingElement;
 
 public class Toggle extends TooltippingElement<Toggle> {

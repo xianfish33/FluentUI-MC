@@ -11,6 +11,17 @@ import xianfish.fluentui.client.ui.interaction.InteractionManager;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 悬停提示浮层：挂载于浮层树 OverlayTree 的纯展示被动节点。
+ *
+ * <p>本类直接继承 {@code Element} 而非浮层基类 OverlayElement，全局仅保留一个单例
+ * {@code current}；从不挂入布局树，无需 {@code removeFromParent()} 脱离布局父容器。
+ * 显示时直接经 {@code pushOverlay(current, false, false)} 完成根级推入（语义等价于
+ * {@code pushToActiveManager} 自挂载），取 blocksMouse 整区不透明/幕布 vs 点击穿透中的点击穿透一侧，
+ * 且 {@code dismissOnOutsideClick=false}，不参与 {@code onOutsideInteraction()} 外部交互钩子的外部关闭路由。
+ * 收起不走其它浮层 close() 关闭（hide/dismiss 为兼容别名）约定，而靠 hover 丢失收起；
+ * 卸载时直接摘除节点（语义对应 {@code removeFromActiveManager} 卸载），与其它浮层为多浮层共存（无竞争）关系。</p>
+ */
 public class Tooltip extends Element<Tooltip> {
     // private static final Logger LOG = LogUtils.getLogger();
     private static final int PAD_X = 8, PAD_Y = 4, GAP = 10;
@@ -43,7 +54,6 @@ public class Tooltip extends Element<Tooltip> {
         this.viewportW = vw;
         this.viewportH = vh;
         visible = true;
-        zIndex(Integer.MAX_VALUE);
     }
 
     public Tooltip expand(ExpandDir d) { expandDir = d; return this; }
@@ -75,6 +85,15 @@ public class Tooltip extends Element<Tooltip> {
         showAt(cursorX, cursorY, text != null ? text.getString() : null, font, vw, vh, dir);
     }
 
+    /**
+     * 显示或复用提示浮层：同文本复用当前节点并重定位，新文本则重建后做根级推入。
+     *
+     * <p>同文本命中 {@code current} 时直接复用并更新边侧与换行度量，避免闪烁；
+     * 否则先经 {@code hideInstance()} 摘除旧节点，再新建 {@code current}，
+     * 以 {@code (current, false, false)} 被动节点形式经 {@code pushOverlay} 推入
+     * 浮层树 OverlayTree：{@code blocksMouse=false} 取点击穿透语义，
+     * {@code dismissOnOutsideClick=false} 使其不参与外部关闭路由，存活完全靠 hover 丢失收起。</p>
+     */
     public static void showAt(int cursorX, int cursorY, String text,
                               net.minecraft.client.gui.Font font, int vw, int vh, ExpandDir dir) {
         if (current != null && current.visible && text != null && text.equals(current.rawText)) {
@@ -120,7 +139,7 @@ public class Tooltip extends Element<Tooltip> {
         current.textTrans = false;
         current.oldLines = null;
         current.textFade = 0;
-        if (InteractionManager.active != null) InteractionManager.active.overlay(current);
+        if (InteractionManager.active != null) InteractionManager.active.pushOverlay(current, /*blocksMouse*/false, /*dismissOnOutsideClick*/false);
     }
 
     private static final int LINE_GAP = 2;
@@ -195,6 +214,9 @@ public class Tooltip extends Element<Tooltip> {
         return out;
     }
 
+    /**
+     * hover 丢失收起：仅置 {@code hiding} 标志，由 {@code tick()} 播完收缩动画后再经 {@code hideInstance()} 摘除。
+     */
     public static void hide() {
         if (current == null || current.hiding) return;
         current.hiding = true;
@@ -210,20 +232,17 @@ public class Tooltip extends Element<Tooltip> {
 
     public static TooltippingElement<?> owner() { return currentOwner; }
 
+    /**
+     * 悬停跟踪：竞争检查旧归属并按需更替，与其它浮层多浮层共存（无竞争）。
+     *
+     * <p>命中当前元素且回调文本非空时显示提示；若归属 {@code currentOwner} 发生变化，
+     * 先经 {@code hideInstance()} 摘除旧提示（竞争检查移除），再 {@code showAt} 重建，
+     * 同归属则复用当前节点。元素不再被悬停或文本为空时，若归属仍是该元素则判为
+     * hover 丢失收起，经 {@code hide()} 进入收缩动画。</p>
+     */
     public static void track(TooltippingElement<?> el, net.minecraft.client.gui.Font f) {
         if (el == null) return;
-        // if (LOG.isDebugEnabled()) LOG.debug("track: el={} vis={} hit={} owner={} overlay={}",
-        //         el.getClass().getSimpleName(), el.isVisible(),
-        //         InteractionManager.active != null && InteractionManager.isHit(el, curX, curY),
-        //         currentOwner != null ? currentOwner.getClass().getSimpleName() : null,
-        //         InteractionManager.active != null && InteractionManager.active.overlay() != null ? InteractionManager.active.overlay().getClass().getSimpleName() : null);
-        if (InteractionManager.active != null
-                && InteractionManager.active.overlay() != null
-                && !(InteractionManager.active.overlay() instanceof Tooltip)) {
-            if (currentOwner != null) { currentOwner = null; hide(); }
-            return;
-        }
-        if (el.isVisible() && InteractionManager.isHit(el, curX, curY)) {
+        if (el.isVisible() && Element.isHit(el, curX, curY)) {
             var cb = el.tooltipCallback();
             Component c = cb != null ? cb.get() : null;
             String t = c != null ? c.getString() : null;
@@ -240,11 +259,14 @@ public class Tooltip extends Element<Tooltip> {
         if (currentOwner == el) { currentOwner = null; hide(); }
     }
 
+    /**
+     * 立即摘除当前提示节点：置不可见并从浮层树 OverlayTree 移除（语义对应 {@code removeFromActiveManager} 卸载），
+     * 置空 {@code current}，供 {@code track()} 的竞争检查移除与 {@code showAt} 重建前调用。
+     */
     private static void hideInstance() {
         if (current != null) {
             current.visible = false;
-            if (InteractionManager.active != null && InteractionManager.active.overlay() == current)
-                InteractionManager.active.overlay(null);
+            if (InteractionManager.active != null) InteractionManager.active.removeOverlay(current);
             current = null;
         }
     }
@@ -364,6 +386,10 @@ public class Tooltip extends Element<Tooltip> {
         return (na << 24) | (color & 0xFFFFFF);
     }
 
+    /**
+     * 点击穿透：任何鼠标点击都先收起提示（hover 丢失收起在点击路径上的兜底），
+     * 始终返回 {@code false} 不吞事件，底下控件与其它浮层照常交互（多浮层共存（无竞争））。
+     */
     @Override public boolean mouseClicked(double mx, double my, int btn) { hide(); return false; }
     @Override public boolean mouseReleased(double mx, double my, int btn) { return false; }
     @Override public boolean mouseDragged(double mx, double my, int btn, double dx, double dy) { return false; }

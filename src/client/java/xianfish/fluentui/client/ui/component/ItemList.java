@@ -1,14 +1,14 @@
 package xianfish.fluentui.client.ui.component;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import xianfish.fluentui.client.ui.layout.Orientation;
-import xianfish.fluentui.client.ui.layout.StackPanel;
+import xianfish.fluentui.client.ui.element.layout.Orientation;
+import xianfish.fluentui.client.ui.element.layout.StackPanel;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 @SuppressWarnings("unchecked")
-public class ItemList<T> extends ListView<T> { // ItemList不是ItemView的list，但是我不想动依赖了，其实是可编辑的ListView
+public class ItemList<T> extends ListView<T> { // ItemList不是ItemView的list，其实是可编辑的ListView
     private static final int DEL_W = 14;
 
     private int delPad() { return Math.max(1, (itemHeight - DEL_W) / 2); }

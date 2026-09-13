@@ -23,7 +23,7 @@ public abstract class TooltippingElement<T extends TooltippingElement<T>> extend
     public T tooltip(Supplier<Component> c) { tooltip = c; return (T) this; }
 
     @Override public void mouseEntered(double mx, double my) {
-        if (tooltip == null) {
+        if (tooltip == null || isTooltipSuppressed()) {
             // if (LOG.isDebugEnabled()) LOG.debug("{} mouseEntered: no tooltip", this);
             return;
         }
@@ -32,7 +32,7 @@ public abstract class TooltippingElement<T extends TooltippingElement<T>> extend
     }
 
     @Override public void mouseMoved(double mx, double my) {
-        if (tooltip == null) return;
+        if (tooltip == null || isTooltipSuppressed()) return;
         Tooltip.track(this, font);
     }
 
@@ -48,4 +48,10 @@ public abstract class TooltippingElement<T extends TooltippingElement<T>> extend
         // LOG.debug("{} dismissTooltip", this);
         if (Tooltip.owner() == this) Tooltip.hide();
     }
+
+    /**
+     * Tooltip 压制钩子：返回 {@code true} 时悬停不再唤起 tooltip。
+     * 输入框类覆写它——右键菜单／候选下拉打开时 tooltip 会盖住菜单。
+     */
+    protected boolean isTooltipSuppressed() { return false; }
 }

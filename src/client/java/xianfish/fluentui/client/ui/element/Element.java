@@ -3,7 +3,7 @@ package xianfish.fluentui.client.ui.element;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
-import xianfish.fluentui.client.ui.layout.OverflowMode;
+import xianfish.fluentui.client.ui.element.layout.OverflowMode;
 
 public abstract class Element<T extends Element<T>> {
     protected int x;
@@ -16,7 +16,6 @@ public abstract class Element<T extends Element<T>> {
     protected boolean dirty = true;
     protected int zIndex = 0;
     protected Font font;
-    protected boolean paused;
     protected Element<?> pressOwner;
 
     public Element(int x, int y, int width, int height) {
@@ -35,6 +34,11 @@ public abstract class Element<T extends Element<T>> {
 
     public int getX() { return x; }
     public int getY() { return y; }
+
+    /** 多点定位的出入参类型：只读点。锚定定位用（见 {@code tl／tr／bl／br／center}）。 */
+    public record UIPoint(int x, int y) {
+        public static final UIPoint ZERO = new UIPoint(0, 0);
+    }
 
     public UIPoint tl() { return new UIPoint(x, y); }
     public UIPoint tr() { return new UIPoint(x + width, y); }
@@ -64,6 +68,19 @@ public abstract class Element<T extends Element<T>> {
     public Element<?> getParent() { return parent; }
     public void setParent(Element<?> parent) { this.parent = parent; }
 
+    /**
+     * 把本元素从布局父容器的子列表中摘除（脱离布局父容器 {@code removeFromParent()}，若有）。
+     * 单独的 {@link #setParent} 只改回指；当元素要迁移到浮层树、不再由原布局宿主绘制时，用本方法让旧宿主彻底放手。
+     */
+    @SuppressWarnings("unchecked")
+    public T removeFromParent() {
+        if (parent instanceof LayoutElement<?> layoutElement) {
+            layoutElement.children().remove(this);
+        }
+        parent = null;
+        return (T) this;
+    }
+
     public Element<?> pressOwner() { return pressOwner; }
 
     public static final int CAPTURE_DRAG = 1 << 0;
@@ -78,7 +95,7 @@ public abstract class Element<T extends Element<T>> {
         int ax = x;
         for (Element<?> p = parent; p != null; p = p.getParent()) {
             ax += p.getX();
-            if (p instanceof Layout<?> l) ax -= (int) l.scrollX();
+            if (p instanceof LayoutElement<?> l) ax -= (int) l.scrollX();
         }
         return ax;
     }
@@ -87,7 +104,7 @@ public abstract class Element<T extends Element<T>> {
         int ay = y;
         for (Element<?> p = parent; p != null; p = p.getParent()) {
             ay += p.getY();
-            if (p instanceof Layout<?> l) ay -= (int) l.scrollY();
+            if (p instanceof LayoutElement<?> l) ay -= (int) l.scrollY();
         }
         return ay;
     }
@@ -110,32 +127,55 @@ public abstract class Element<T extends Element<T>> {
     public void mouseMoved(double mx, double my) {}
     public void mouseExited() {}
 
-    public boolean isPaused() { return paused; }
-    @SuppressWarnings("unchecked")
-    public T setPaused(boolean v) { paused = v; return (T) this; }
-    public void refreshBounds() { layout(); }
-    public void suspendInteractions() {
-        setPaused(true);
-        if (this instanceof Layout<?> layout) {
-            for (Element<?> c : layout.children()) c.suspendInteractions();
-        }
-    }
-    public void resumeInteractions() {
-        setPaused(false);
-        if (this instanceof Layout<?> layout) {
-            for (Element<?> c : layout.children()) c.resumeInteractions();
-        }
-        refreshBounds();
+    /**
+     * 当明确用户交互（点击 / 松开 / 拖拽 / 滚轮）落在本元素命中区域<em>之外</em>，且本元素位于浮层树中时，由 {@code InteractionManager} 调用
+     * （外部交互钩子 {@code onOutsideInteraction()}，明确输入专属）。默认空实现。
+     *
+     * <p>覆写以实现“点击外部关闭”，无需每个组件重复推导同一逻辑。
+     * 悬停（被动）不触发。
+     */
+    public void onOutsideInteraction() {}
+
+    /**
+     * H0 纯几何矩形命中：仅自身几何矩形，不看裁剪、不看遮挡、不看浮层树，不可覆写。
+     * 想"只问矩形"一律调它；分发门控走 L1 {@link #isHit}（含裁剪）及以上。
+     */
+    public static boolean rectHit(Element<?> el, double mx, double my) {
+        int ax = el.getAbsoluteX(), ay = el.getAbsoluteY();
+        return mx >= ax && mx <= ax + el.width && my >= ay && my <= ay + el.height;
     }
 
+    /**
+     * L0 裸矩形命中：默认即 H0 {@link #rectHit}，渲染期宽松反馈（如悬停描边）用它。
+     *
+     * <p><b>不得</b>用于失焦判定、开关切换、分发门控——那些走 L1 {@link #isHit}（含裁剪）及以上。
+     */
     public boolean isHovered(double mx, double my) {
-        int ax = getAbsoluteX(), ay = getAbsoluteY();
-        return mx >= ax && mx <= ax + width && my >= ay && my <= ay + height;
+        return rectHit(this, mx, my);
+    }
+
+    /**
+     * H1 有效形状命中：唯一可覆写点。默认即 H0 {@link #rectHit}；
+     * 覆写只准谈"形状"（开关门限、动画中间态几何），不准谈裁剪、不准谈树。
+     *
+     * <p>L1 {@link #isHit} 经由本方法取值——覆写者自动参与分发门控、外部关闭、
+     * 阻断判定的统一谓词，无需在各分发点重复自查。
+     */
+    public boolean shapeHit(double mx, double my) {
+        return rectHit(this, mx, my);
+    }
+
+    /**
+     * L1 裁剪命中：L0 矩形 ∩ 祖先裁剪链。分发门控、外部关闭、阻断判定的统一谓词。
+     * 跨树的全 UI 命中见 {@code InteractionManager#topmostAnywhere}（L3）。
+     */
+    public static boolean isHit(Element<?> el, double mx, double my) {
+        return el.shapeHit(mx, my) && el.isMouseWithinClipBounds(mx, my);
     }
 
     public boolean isMouseWithinClipBounds(double mx, double my) {
         for (Element<?> p = parent; p != null; p = p.getParent()) {
-            if (p instanceof Layout<?> l) {
+            if (p instanceof LayoutElement<?> l) {
                 OverflowMode o = l.getOverflowMode();
                 if (o == OverflowMode.HIDDEN || o == OverflowMode.SCROLL) {
                     int px = l.getAbsoluteX(), py = l.getAbsoluteY();

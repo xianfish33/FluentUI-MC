@@ -16,6 +16,17 @@ public abstract class FluentScreen extends Screen {
         return manager != null && manager.hasFocusedTextInput();
     }
 
+    /**
+     * 悬停事件的一级驱动：鼠标移动即刷新悬停归属（enter／exit／move）。
+     * 过去悬停只靠 {@code Tooltip.cursor} 轮询间接触发；此处接上后 tooltip 退为纯消费者。
+     * （{@code updateHover} 同坐标重复调用为空操作，与 cursor 轮询共存安全。）
+     */
+    @Override
+    public void mouseMoved(double mouseX, double mouseY) {
+        InteractionManager manager = InteractionManager.active;
+        if (manager != null) manager.updateHover(mouseX, mouseY);
+    }
+
     @Override
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
         if (minecraft.level == null) {

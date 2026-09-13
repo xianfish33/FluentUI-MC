@@ -96,11 +96,21 @@ public class TextBox extends FocusableElement<TextBox> {
         if (contextMenu != null) contextMenu.hide();
     }
 
+    /**
+     * 右键菜单打开期间压制 tooltip：菜单与 tooltip 同为浮层，
+     * 不压制则后唤起的 tooltip 会盖在菜单上。
+     */
+    @Override protected boolean isTooltipSuppressed() {
+        return contextMenu != null && contextMenu.isVisible();
+    }
+
     private void showContextMenu(int mx, int my) {
-        setFocused(true);
         if (contextMenu == null) {
             contextMenu = new ContextMenu().font(font);
             contextMenu.setParent(null);
+            // 右键菜单是焦点家族成员：点击它不算外部，不失焦（命中即境内）。
+            // 菜单对象缓存复用，注册一次即可；隐藏的成员不可能被命中，无需摘除。
+            addFocusFamily(contextMenu);
         }
         List<ContextMenu.MenuItem> items = new ArrayList<>();
         items.add(new ContextMenu.MenuItem(Component.translatable("fluentui.textbox.paste"), () -> {
@@ -118,6 +128,7 @@ public class TextBox extends FocusableElement<TextBox> {
             }, true));
         }
         contextMenu.items(items);
+        dismissTooltip();
         contextMenu.show(mx, my);
     }
 
@@ -169,7 +180,8 @@ public class TextBox extends FocusableElement<TextBox> {
         if (!visible) return false;
         if (btn == 1) { showContextMenu((int) mx, (int) my); return true; }
         if (btn != 0) return false;
-        setFocused(isHovered(mx, my));
+        // 焦点由点击链转移算法在分发前定好：命中本框已领焦，命中外部已失焦。
+        // 这里只读 focused，不再自查 isHovered 自领。
         if (focused && font != null) {
             clearSel();
             cursorPos = findCursor((int) mx - getAbsoluteX() - PAD + (int) scrollX);
@@ -191,10 +203,6 @@ public class TextBox extends FocusableElement<TextBox> {
         if (dragging && focused && hasSel()) cursorPos = selMax();
         dragging = false;
         return false;
-    }
-
-    @Override public boolean isHovered(double mx, double my) {
-        return super.isHovered(mx, my);
     }
 
     private int findCursor(int relX) {

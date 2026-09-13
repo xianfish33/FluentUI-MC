@@ -199,13 +199,14 @@ public class Stepper extends FocusableElement<Stepper> {
         int ax = getAbsoluteX(), ay = getAbsoluteY();
         boolean inBox = mx >= ax && mx <= ax + width && my >= ay && my <= ay + height;
 
-        if (!inBox) { setFocused(false); return false; }
+        if (!inBox) return false;
 
         int lx = ax, lw = BTN_W, rx = ax + width - BTN_W;
         if (mx >= lx && mx <= lx + lw) { dec(); return true; }
         if (mx >= rx && mx <= rx + BTN_W) { inc(); return true; }
 
-        setFocused(true);
+        // 命中中央区即已由点击链转移算法领焦（Stepper 是 FocusableElement），
+        // 这里只读 focused，不再自领。
         if (!editing && allowInput && mode != Mode.FIXED) {
             startEdit();
         } else if (editing && editCommitted) {
@@ -219,10 +220,6 @@ public class Stepper extends FocusableElement<Stepper> {
         if (editing) return false;
         if (va > 0) inc(); else if (va < 0) dec();
         return true;
-    }
-
-    @Override public boolean isHovered(double mx, double my) {
-        return super.isHovered(mx, my);
     }
 
     public boolean charTyped(char chr) {

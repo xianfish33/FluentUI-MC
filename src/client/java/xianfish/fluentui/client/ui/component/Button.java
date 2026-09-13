@@ -4,7 +4,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import xianfish.fluentui.client.ui.animation.Animator;
 import xianfish.fluentui.client.ui.animation.Easing;
-import xianfish.fluentui.client.ui.element.Colors;
+import xianfish.fluentui.client.ui.util.Colors;
 import xianfish.fluentui.client.ui.element.Element;
 
 public class Button extends Element<Button> {

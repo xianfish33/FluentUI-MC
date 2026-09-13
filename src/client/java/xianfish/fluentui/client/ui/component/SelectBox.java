@@ -3,7 +3,7 @@ package xianfish.fluentui.client.ui.component;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import xianfish.fluentui.client.ui.animation.Animator;
 import xianfish.fluentui.client.ui.animation.Easing;
-import xianfish.fluentui.client.ui.element.Colors;
+import xianfish.fluentui.client.ui.util.Colors;
 import xianfish.fluentui.client.ui.element.TooltippingElement;
 
 public class SelectBox extends TooltippingElement<SelectBox> {
@@ -17,7 +17,7 @@ public class SelectBox extends TooltippingElement<SelectBox> {
     }
 
     protected SelectBoxColors colors;
-    protected boolean hovered, selected;
+    protected boolean selected;
     protected Runnable onClick;
     protected final Animator hoverAnim = new Animator();
 
@@ -55,12 +55,12 @@ public class SelectBox extends TooltippingElement<SelectBox> {
         return false;
     }
 
-    @Override public boolean isHovered(double mx, double my) {
-        boolean h = super.isHovered(mx, my);
-        if (h != hovered) {
-            hovered = h;
-            hoverAnim.animate(hoverAnim.get(), hovered ? 1 : 0, 100, Easing.EASE_OUT_CUBIC);
-        }
-        return hovered;
+    // 悬停动画由进入／离开事件驱动，不再在命中查询里带副作用。
+    // 查询保持为纯几何判定（基类实现），命中、分发、渲染读到同一结果。
+    @Override public void mouseEntered(double mx, double my) {
+        hoverAnim.animate(hoverAnim.get(), 1, 100, Easing.EASE_OUT_CUBIC);
+    }
+    @Override public void mouseExited() {
+        hoverAnim.animate(hoverAnim.get(), 0, 100, Easing.EASE_OUT_CUBIC);
     }
 }

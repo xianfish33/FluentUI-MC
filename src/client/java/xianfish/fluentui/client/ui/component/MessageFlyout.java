@@ -5,12 +5,22 @@ import net.minecraft.network.chat.Component;
 import xianfish.fluentui.client.ui.animation.Animator;
 import xianfish.fluentui.client.ui.animation.Easing;
 import xianfish.fluentui.client.ui.element.Element;
-import xianfish.fluentui.client.ui.interaction.InteractionManager;
+import xianfish.fluentui.client.ui.element.OverlayElement;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MessageFlyout extends Element<MessageFlyout> {
-    private static final int PAD = 8, SPACING = 4, BORDER_H = 1, MARGIN = 12;
+/**
+ * 右下角消息浮层：挂载于浮层树 OverlayTree 的穿透式通知浮层。
+ *
+ * <p>继承浮层基类 OverlayElement，从不挂入布局树，无需 {@code removeFromParent()} 脱离布局父容器；
+ * 经 {@code pushToActiveManager} 自挂载完成根级推入。以 {@code blocksMouse=false} 推入，
+ * 取 blocksMouse 整区不透明/幕布 vs 点击穿透中的点击穿透一侧，所有鼠标事件均返回 {@code false}，
+ * 底下控件照常交互。不靠 hover 丢失收起，靠自动消失定时器与外部关闭收起：
+ * 外部输入经 {@code dismissOnOutsideClick} 路由到 {@code onOutsideInteraction()} 外部交互钩子；
+ * 与其它浮层为多浮层共存（无竞争）关系。关闭统一走 {@code close()} 关闭（{@code hide}/{@code dismiss} 为兼容别名）。</p>
+ */
+public class MessageFlyout extends OverlayElement<MessageFlyout> {
+    private static final int PAD = 8, SPACING = 4, BORDER_W = 3, MARGIN = 12;
     private static final int CLOSE_SIZE = 10, MAX_WIDTH = 260;
 
     private int borderColor = 0xFF3B82F6;
@@ -67,6 +77,13 @@ public class MessageFlyout extends Element<MessageFlyout> {
         openFlyout();
     }
 
+    /**
+     * 打开浮层：计算尺寸后经 {@code pushToActiveManager} 自挂载完成根级推入。
+     *
+     * <p>以 {@code blocksMouse=false} 推入，取点击穿透语义（相对整区不透明/幕布），
+     * 浮层树 OverlayTree 分发时不阻断下层浮层与布局树，外部输入仍经
+     * {@code dismissOnOutsideClick} 路由到 {@code onOutsideInteraction()} 外部交互钩子自动收起。</p>
+     */
     private void openFlyout() {
         if (font == null) font = net.minecraft.client.Minecraft.getInstance().font;
         for (Element<?> a : actions) a.font(font);
@@ -77,33 +94,37 @@ public class MessageFlyout extends Element<MessageFlyout> {
         slideTarget = 1;
         slideAnim.animate(slideAnim.get(), 1, 200, Easing.EASE_OUT_CUBIC);
         showTime = System.currentTimeMillis();
-        if (InteractionManager.active != null) InteractionManager.active.overlay(this);
+        pushToActiveManager(/*blocksMouse=*/false);
     }
 
-    public void hide() {
-        open = false;
-        visible = false;
+    /**
+     * {@code close()} 关闭：复位滑入动画，触发 {@code onDismiss}，并经 {@code removeFromActiveManager} 卸载摘除浮层树 OverlayTree 节点。
+     */
+    @Override public void close() {
+        super.close();
         slideAnim.set(0);
         closeHovered = false;
         if (onDismiss != null) onDismiss.run();
-        if (InteractionManager.active != null && InteractionManager.active.overlay() == this)
-            InteractionManager.active.overlay(null);
+        removeFromActiveManager();
     }
+
+    /** {@code close()} 关闭；{@code hide} 为兼容别名，优先使用 {@link #close()}。 */
+    public void hide() { close(); }
 
     private void computeSize() {
         if (font == null) return;
-        int msgW = Math.min(font.width(message) + 2, MAX_WIDTH - PAD * 2 - CLOSE_SIZE - 4);
+        int msgW = Math.min(font.width(message) + 2, MAX_WIDTH - PAD * 2 - BORDER_W - CLOSE_SIZE - 4);
         int actW = 0;
         for (Element<?> a : actions) actW = Math.max(actW, a.getWidth());
         width = Math.max(msgW, actW) + PAD * 2 + CLOSE_SIZE + 4;
         width = Math.min(width, MAX_WIDTH);
 
-        int msgH = font.wordWrapHeight(message, width - PAD * 2 - CLOSE_SIZE - 4);
+        int msgH = font.wordWrapHeight(message, width - PAD * 2 - BORDER_W - CLOSE_SIZE - 4);
         int actH = 0;
         for (Element<?> a : actions) actH += a.getHeight() + SPACING;
         if (!actions.isEmpty()) actH -= SPACING;
 
-        height = BORDER_H + PAD + msgH + (actions.isEmpty() ? 0 : SPACING + actH) + PAD;
+        height = PAD + msgH + (actions.isEmpty() ? 0 : SPACING + actH) + PAD;
 
         x = MARGIN;
         y = MARGIN;
@@ -135,13 +156,13 @@ public class MessageFlyout extends Element<MessageFlyout> {
         float slide = slideAnim.get();
         if (slide < 0.01f) return;
 
-        String[] lines = wordWrap(message, width - PAD * 2 - CLOSE_SIZE - 4);
+        String[] lines = wordWrap(message, width - PAD * 2 - BORDER_W - CLOSE_SIZE - 4);
         int msgH = lines.length * font.lineHeight;
         e.enableScissor(bx, by, bx + width, by + height);
         e.fill(bx, by, bx + width, by + height, bgColor);
-        e.fill(bx, by, bx + width, by + BORDER_H, borderColor);
+        e.fill(bx, by, bx + BORDER_W, by + height, borderColor);
 
-        int tx = bx + PAD, ty = by + PAD + BORDER_H;
+        int tx = bx + PAD + BORDER_W, ty = by + PAD;
         for (String line : lines) {
             e.text(font, line, tx, ty, textColor);
             ty += font.lineHeight;
@@ -154,7 +175,7 @@ public class MessageFlyout extends Element<MessageFlyout> {
             ty += a.getHeight() + SPACING;
         }
 
-        int cx = bx + width - PAD - CLOSE_SIZE, cy = by + PAD + BORDER_H;
+        int cx = bx + width - PAD - CLOSE_SIZE, cy = by + PAD;
         boolean ch = mx >= cx && mx <= cx + CLOSE_SIZE && my >= cy && my <= cy + CLOSE_SIZE;
         if (ch != closeHovered) { closeHovered = ch; closeAnim.animate(closeAnim.get(), ch ? 1 : 0, 80, Easing.EASE_OUT_CUBIC); }
         int ca = 0x80 + (int)(closeAnim.get() * 0x7F);
@@ -163,19 +184,26 @@ public class MessageFlyout extends Element<MessageFlyout> {
         e.disableScissor();
     }
 
+    /**
+     * 点击处理：命中关闭钮或动作子元素时消费事件；其余一律返回 {@code false} 不吞事件，
+     * 以便外部点击经 {@code dismissOnOutsideClick} 路由到 {@code onOutsideInteraction()} 外部交互钩子，
+     * 由浮层树 OverlayTree 的外部关闭清扫统一收起（点击穿透语义）。
+     */
     @Override public boolean mouseClicked(double mx, double my, int btn) {
         if (!open || !visible || btn != 0) return false;
         int cx = getAbsoluteX() + width - PAD - CLOSE_SIZE;
-        int cy = getAbsoluteY() + PAD + BORDER_H;
+        int cy = getAbsoluteY() + PAD;
         if (mx >= cx && mx <= cx + CLOSE_SIZE && my >= cy && my <= cy + CLOSE_SIZE) { hide(); return true; }
         for (Element<?> a : actions) {
             if (a.mouseClicked(mx, my, btn)) return true;
         }
-        hide();
-        return true;
+        return false;
     }
 
-    @Override public boolean isHovered(double mx, double my) {
+    /** {@code close()} 关闭；{@code dismiss} 为兼容别名，优先使用 {@link #close()}。 */
+    public void dismiss() { close(); }
+
+    @Override public boolean shapeHit(double mx, double my) {
         if (!open) return false;
         int ax = getAbsoluteX(), ay = getAbsoluteY();
         return mx >= ax && mx <= ax + width && my >= ay && my <= ay + height;

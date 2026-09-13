@@ -8,11 +8,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import xianfish.fluentui.client.ui.animation.Animator;
 import xianfish.fluentui.client.ui.animation.Easing;
-import xianfish.fluentui.client.ui.element.Colors;
+import xianfish.fluentui.client.ui.util.Colors;
 import xianfish.fluentui.client.ui.element.TooltippingElement;
 
 import java.util.ArrayList;
 import java.util.List;
+
 
 /**
  * notice: 创建该组件的屏幕必须处于游戏内（不然哪来的ItemStack）游戏实例就会爆炸
