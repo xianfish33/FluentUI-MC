@@ -105,7 +105,7 @@ publishing {
 			allowInsecureProtocol = true
 			credentials {
 				username = "xianfish"
-				password = "d0e73d4827fea6f15f3f9b2e220cb55b5953a1c5"
+				password = "65a482336033018033f999df6fc47e0e263cac61"
 			}
 		}
 	}
