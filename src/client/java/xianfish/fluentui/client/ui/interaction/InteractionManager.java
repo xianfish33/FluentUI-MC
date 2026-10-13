@@ -5,7 +5,6 @@ import xianfish.fluentui.client.ui.element.*;
 import xianfish.fluentui.client.ui.interaction.input.*;
 import xianfish.fluentui.client.ui.overlay.OverlayManager;
 import xianfish.fluentui.client.ui.overlay.OverlayTree;
-import xianfish.fluentui.client.ui.tick.TickWalker;
 
 import java.util.List;
 import java.util.function.Predicate;
@@ -345,11 +344,6 @@ public class InteractionManager {
             cur = cur.getParent();
         }
         return false;
-    }
-
-    /** 每帧推进：根元素树与浮层树全部节点（不看可见性）。 */
-    public void tick() {
-        TickWalker.forEachElement(root, overlays != null ? overlays.tree() : null, Element::tick);
     }
 
     public boolean keyPressed(KeyPressedEvent e) {
