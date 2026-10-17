@@ -14,8 +14,6 @@ public class FluentUI implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		// 模组加载就绪后执行；资源等内容可能尚未初始化，访问时注意判空。
-
 	}
 
 	public static Identifier id(String path) {

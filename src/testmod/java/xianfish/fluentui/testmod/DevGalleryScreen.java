@@ -45,6 +45,7 @@ import xianfish.fluentui.client.ui.interaction.input.MouseScrolledEvent;
 import xianfish.fluentui.client.ui.interaction.input.PreeditUpdatedEvent;
 import xianfish.fluentui.client.ui.overlay.OverlayManager;
 import xianfish.fluentui.client.ui.tick.UiTickDriver;
+import xianfish.fluentui.testmod.component.GradientBox;
 import java.util.List;
 
 /**
@@ -152,6 +153,9 @@ public class DevGalleryScreen extends FluentScreen {
 
 		row("ProgressBar", new ProgressBar(200)
 			.progress(0.66f));
+
+		row("Gradient", new GradientBox(200, 28)
+			.corners(0xFF1D4ED8, 0xFF60A5FA, 0xFF0F172A, 0xFF3B82F6));
 
 		row("ListView", new ListView<String>(200, 64)
 			.itemHeight(20)
