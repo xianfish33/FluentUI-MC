@@ -21,8 +21,8 @@ public class ListView<T> extends TooltippingElement<ListView<T>> {
 
     public record ListViewColors(int bg, int border, int itemText, int hoverBg, int selBg, int accent, int scrollbar) {
         public static ListViewColors blue() {
-            return new ListViewColors(0xFF1A1A1A, 0xFF333333, 0xFFFFFFFF,
-                0x303B82F6, 0x303B82F6, 0xFF3B82F6, 0x80FFFFFF);
+            return new ListViewColors(0xFF222222, 0xFF555555, 0xFFFFFFFF,
+                0x403B82F6, 0x403B82F6, 0xFF3B82F6, 0x80FFFFFF);
         }
     }
 

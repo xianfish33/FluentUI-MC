@@ -326,8 +326,6 @@ public class InteractionManager {
     public boolean mouseScrolled(MouseScrolledEvent e) {
         double mx = e.x();
         double my = e.y();
-        double ha = e.horizontal();
-        double va = e.vertical();
         if (mouseCapture != null) {
             if (mouseCapture.mouseScrolled(e)) return true;
         }
@@ -337,10 +335,13 @@ public class InteractionManager {
         // 外部交互关闭前移：分发前定去留（见 mousePressed）。
         dismissOverlaysOutside(mx, my);
 
-        // 枝叶→主干：从命中元素自身开始，沿父链向上，通知式且不截断后续分发。
+        // 按下链同构：从命中元素自身开始，沿父链向上，第一个消费滚轮的即截断。
+        // 点落在容器空白处（没命中任何子元素）时，起点是那个矩形含点的最深布局容器——
+        // 空白处归容器自己，与 mousePressed 的命中口径对齐。
         Element<?> cur = topmostAnywhere(mx, my);
+        if (cur == null) cur = Hit.deepestLayoutAt(root, mx, my);
         while (cur != null) {
-            cur.mouseScrolled(e);
+            if (cur.mouseScrolled(e)) return true;
             cur = cur.getParent();
         }
         return false;

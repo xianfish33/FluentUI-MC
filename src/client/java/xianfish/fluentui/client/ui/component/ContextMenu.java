@@ -37,7 +37,7 @@ public class ContextMenu extends Element<ContextMenu> {
 
     public record ContextMenuColors(int bg, int border, int text, int hoverBg, int disabledText) {
         public static ContextMenuColors blue() {
-            return new ContextMenuColors(0xFF1E1E1E, 0xFF333333, 0xFFFFFFFF, 0x303B82F6, 0xFF666666);
+            return new ContextMenuColors(0xFF222222, 0xFF555555, 0xFFFFFFFF, 0x403B82F6, 0xFF666666);
         }
     }
 

@@ -38,13 +38,18 @@ import java.util.function.Consumer;
 public class AutoCompleteBox extends FocusableElement<AutoCompleteBox> {
     private static final int PAD = 6, ITEM_H = 18, DD_OFF = 2, MAX_DD_H = 150, MAX_UNDO = 50;
 
+    /**
+     * 自动补全配色：前七项是输入框本体，与 {@link TextBox} 逐值对齐；后五项是浮层下拉面板，
+     * 同样取输入框那一套（面板底色 {@code 0xFF222222}、边框 {@code 0xFF555555}，
+     * 高亮底色与选区同值同不透明度 {@code 0x403B82F6}），不再用更暗的半透明面板底。
+     */
     public record AutoColors(int bg, int border, int text, int focusBorder,
                               int placeholder, int cursor, int selection,
                               int ddBg, int ddBorder, int ddText, int ddHoverBg, int ddHighlight) {
         public static AutoColors blue() {
             return new AutoColors(0xFF222222, 0xFF555555, 0xFFFFFFFF, 0xFF3B82F6,
                 0xFF666666, 0xFFFFFFFF, 0x403B82F6,
-                0xFF1E1E1E, 0xFF333333, 0xFFFFFFFF, 0x303B82F6, 0x403B82F6);
+                0xFF222222, 0xFF555555, 0xFFFFFFFF, 0x403B82F6, 0x403B82F6);
         }
     }
 
@@ -60,6 +65,8 @@ public class AutoCompleteBox extends FocusableElement<AutoCompleteBox> {
     private long lastTyped;
     private boolean dragging;
     private IMEPreeditOverlay preeditOverlay;
+    /** 预编辑浮层是否已经交给 MC：只撤回自己交出去过的那一次，不误伤别的输入框正在提交的浮层。 */
+    private boolean preeditSubmitted;
     private ContextMenu contextMenu;
     private final Deque<String> undoStack = new ArrayDeque<>();
 
@@ -108,6 +115,7 @@ public class AutoCompleteBox extends FocusableElement<AutoCompleteBox> {
     @Override protected void focusLost() {
         clearSel();
         closeMenu();
+        preeditOverlay = null;
         Minecraft.getInstance().textInputManager().onTextInputFocusChange(false);
     }
 
@@ -224,7 +232,8 @@ public class AutoCompleteBox extends FocusableElement<AutoCompleteBox> {
     @Override protected void measure() {}
 
     @Override public void extractRenderState(GuiGraphicsExtractor e, int mx, int my, float d) {
-        if (!visible || font == null) return; layout();
+        if (!visible || font == null) { retractPreedit(e); return; }
+        layout();
         int ax = getAbsoluteX(), ay = getAbsoluteY();
         boolean hovered = InteractionManager.hovering(this, mx, my);
         e.fill(ax, ay, ax + width, ay + height, colors.bg);
@@ -255,12 +264,30 @@ public class AutoCompleteBox extends FocusableElement<AutoCompleteBox> {
             long now = System.currentTimeMillis();
             if (!cursorBlink.isRunning() && now - lastTyped > 450)
                 cursorBlink.to(cursorBlink.get() > 0.5f ? 0 : 1, 450, Easing.LINEAR);
-            if (preeditOverlay != null) {
-                int cx = tx + font.width(disp.substring(0, cursorPos));
-                preeditOverlay.updateInputPosition(cx, ty);
-                e.setPreeditOverlay(preeditOverlay);
-            }
         }
+
+        // 预编辑浮层交给 MC 之后，它就一直被 MC 持有着，不会因为本框下一帧没再提交就自动撤销。
+        // 所以候选上屏或失焦那几帧必须显式补一次 null，否则浮层会留在屏幕上。
+        if (focused && preeditOverlay != null) {
+            int cx = tx + font.width(disp.substring(0, cursorPos));
+            preeditOverlay.updateInputPosition(cx, ty);
+            e.setPreeditOverlay(preeditOverlay);
+            preeditSubmitted = true;
+        } else {
+            retractPreedit(e);
+        }
+    }
+
+    /**
+     * 撤回预编辑浮层：只有 {@link #preeditSubmitted} 为真时才发那一次 null，
+     * 这样只收回自己交出去过的浮层，不会把别的输入框正在提交的那一个冲掉。
+     *
+     * <p>渲染早退（隐藏、无字体）也走这里：浮层已经交出去了，元素这一帧不画也得收回来。</p>
+     */
+    private void retractPreedit(GuiGraphicsExtractor e) {
+        if (!preeditSubmitted) return;
+        e.setPreeditOverlay(null);
+        preeditSubmitted = false;
     }
 
     @Override public boolean mousePressed(MousePressedEvent e) {

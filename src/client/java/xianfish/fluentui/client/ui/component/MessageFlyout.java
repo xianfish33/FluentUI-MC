@@ -8,6 +8,7 @@ import xianfish.fluentui.client.ui.element.Element;
 import xianfish.fluentui.client.ui.interaction.InteractionManager;
 import xianfish.fluentui.client.ui.interaction.input.HoverEvent;
 import xianfish.fluentui.client.ui.interaction.input.MousePressedEvent;
+import xianfish.fluentui.client.ui.util.TextDrawUtil;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,7 +24,13 @@ import java.util.List;
  * 与其它浮层为多浮层共存（无竞争）关系。关闭统一走 {@link #close()} 关闭（{@code hide}/{@code dismiss} 为兼容别名）。</p>
  */
 public class MessageFlyout extends Element<MessageFlyout> {
-    private static final int PAD = 8, SPACING = 4, BORDER_W = 3, MARGIN = 12;
+    private static final int PAD = 8, SPACING = 4, BORDER_W = 2, MARGIN = 12;
+    /** 左侧色条与左边、上边、下边各留的间距——色条是浮层内的装饰，不贴浮层边缘。 */
+    private static final int BORDER_INSET = 1;
+    /** 关闭按钮的字形：贴在右上角，放大到两倍，内缩见 {@link #closeInset()}。 */
+    private static final String CLOSE_GLYPH = "\u00D7";
+    /** 关闭按钮的缩放倍数：{@code text(...)} 没有缩放参数，靠渲染矩阵放大。 */
+    private static final float CLOSE_SCALE = 2.0f;
     private static final int CLOSE_SIZE = 10, MAX_WIDTH = 260;
 
     private int borderColor = 0xFF3B82F6;
@@ -164,9 +171,9 @@ public class MessageFlyout extends Element<MessageFlyout> {
         int msgH = lines.length * font.lineHeight;
         e.enableScissor(bx, by, bx + width, by + height);
         e.fill(bx, by, bx + width, by + height, bgColor);
-        e.fill(bx, by, bx + BORDER_W, by + height, borderColor);
+        e.fill(bx + BORDER_INSET, by + BORDER_INSET, bx + BORDER_INSET + BORDER_W, by + height - BORDER_INSET, borderColor);
 
-        int tx = bx + PAD + BORDER_W, ty = by + PAD;
+        int tx = bx + BORDER_INSET + BORDER_W + PAD, ty = by + PAD;
         for (String line : lines) {
             e.text(font, line, tx, ty, textColor);
             ty += font.lineHeight;
@@ -179,30 +186,51 @@ public class MessageFlyout extends Element<MessageFlyout> {
             ty += a.getHeight() + SPACING;
         }
 
-        int cx = bx + width - PAD - CLOSE_SIZE, cy = by + PAD;
+        int cx = closeGlyphX(), cy = closeGlyphY();
         // 关钮悬停不在渲染期写：closeHovered 及其触发的 closeAnim 过渡由 refreshHover
-        // （输入路径）独占驱动，这里只按 closeAnim 当前值取透明度画 ✕。
+        // （输入路径）独占驱动，这里只按 closeAnim 当前值取透明度画 ×。
         int ca = 0x80 + (int)(closeAnim.get() * 0x7F);
-        e.text(font, "\u2715", cx, cy, (ca << 24) | 0xFFFFFF);
+        TextDrawUtil.draw(e, font, CLOSE_GLYPH, cx, cy, (ca << 24) | 0xFFFFFF, CLOSE_SCALE);
 
         e.disableScissor();
     }
+
+    /**
+     * 关钮的内缩：距上边与距右边都取这一截。
+     *
+     * <p>取法是「关钮在单行浮层里居中」需要的那一截——单行时字形比一行正文高，
+     * 上下只能各让出 {@code (单行高度 - 字形高) / 2}：再大就贴边，再小就压到正文上。
+     * 多行时沿用同一截，于是消息在单行与多行之间换行时关钮不跳位。</p>
+     */
+    private int closeInset() {
+        if (font == null) return PAD;
+        int singleLineH = PAD * 2 + font.lineHeight;
+        return Math.max(0, (singleLineH - TextDrawUtil.scaledHeight(font, CLOSE_SCALE)) / 2);
+    }
+
+    /**
+     * 关闭按钮字形的左上角：距右边与距上边都是 {@link #closeInset()}，放大到 {@link #CLOSE_SCALE} 倍。
+     *
+     * <p>绘制、{@link #refreshHover} 与 {@link #mousePressed} 三处共用这一对取值，
+     * 保证命中框与画出来的字形对齐。</p>
+     */
+    private int closeGlyphX() { return getAbsoluteX() + width - closeInset() - TextDrawUtil.scaledWidth(font, CLOSE_GLYPH, CLOSE_SCALE); }
+    private int closeGlyphY() { return getAbsoluteY() + closeInset(); }
 
     /**
      * 关钮悬停刷新：{@link #closeHovered} 的唯一写入点（{@code openFlyout}/{@code close} 的
      * 复位除外），由带坐标的输入方法用事件坐标当场算，并在布尔翻转时触发 {@link #closeAnim}
      * 过渡——判定与过渡触发的语义都与原 {@code extractRenderState} 里被移走的那两行相同。
      *
-     * <p>关钮矩形与 {@link #mousePressed} 共用同一条取值表达式
-     * （{@code getAbsoluteX() + width - PAD - CLOSE_SIZE} / {@code getAbsoluteY() + PAD}），
-     * 事件坐标在入口收窄为 int 后再比，与渲染入参精度一致。</p>
+     * <p>关钮矩形与 {@link #mousePressed} 共用 {@link #closeGlyphX()} / {@link #closeGlyphY()}，
+     * 命中框取缩放后的宽高，事件坐标在入口收窄为 int 后再比，与渲染入参精度一致。</p>
      */
     private void refreshHover(double mx, double my) {
         if (!open || !visible) return;
-        int cx = getAbsoluteX() + width - PAD - CLOSE_SIZE;
-        int cy = getAbsoluteY() + PAD;
+        int cx = closeGlyphX(), cy = closeGlyphY();
+        int gw = TextDrawUtil.scaledWidth(font, CLOSE_GLYPH, CLOSE_SCALE), gh = TextDrawUtil.scaledHeight(font, CLOSE_SCALE);
         int px = (int) mx, py = (int) my;
-        boolean ch = px >= cx && px <= cx + CLOSE_SIZE && py >= cy && py <= cy + CLOSE_SIZE;
+        boolean ch = px >= cx && px <= cx + gw && py >= cy && py <= cy + gh;
         if (ch != closeHovered) {
             closeHovered = ch;
             closeAnim.animate(closeAnim.get(), ch ? 1 : 0, 80, Easing.EASE_OUT_CUBIC);
@@ -222,9 +250,10 @@ public class MessageFlyout extends Element<MessageFlyout> {
         if (!open || !visible || e.button() != 0) return false;
         // 落点当场刷新关钮悬停：即使这颗事件没有配对的 mouseMoved，状态也是这一帧的判定。
         refreshHover(e.x(), e.y());
-        int cx = getAbsoluteX() + width - PAD - CLOSE_SIZE;
-        int cy = getAbsoluteY() + PAD;
-        if (e.x() >= cx && e.x() <= cx + CLOSE_SIZE && e.y() >= cy && e.y() <= cy + CLOSE_SIZE) { hide(); return true; }
+        int cx = closeGlyphX(), cy = closeGlyphY();
+        int gw = TextDrawUtil.scaledWidth(font, CLOSE_GLYPH, CLOSE_SCALE), gh = TextDrawUtil.scaledHeight(font, CLOSE_SCALE);
+        if (e.x() >= cx && e.x() <= cx + gw
+            && e.y() >= cy && e.y() <= cy + gh) { hide(); return true; }
         for (Element<?> a : children()) {
             if (Element.isHit(a, e.x(), e.y()) && a.mousePressed(e)) return true;
         }

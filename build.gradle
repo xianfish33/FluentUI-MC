@@ -14,6 +14,13 @@ repositories {
 	// for more information about repositories.
 }
 
+// 独立测试源集：DevGallery 展示页与手工核对用，不进 src/test，也不走 gametest（那是给 CI 冒烟测试用的自动化源集）。
+// 目录走 Gradle 默认约定 src/testmod/{java,resources}，无需显式 srcDir。
+// 类路径与依赖继承在 loom 块之后接线——split 源集（client）要等 loom 的 splitEnvironmentSourceSets() 执行完才存在。
+sourceSets {
+	testmod
+}
+
 loom {
 	splitEnvironmentSourceSets()
 
@@ -22,7 +29,31 @@ loom {
 			sourceSet sourceSets.main
 			sourceSet sourceSets.client
 		}
+		// DevGallery 测试源集。分组后 dev 运行时资源（fabric.mod.json 等）才会被正确加载。
+		"fluentui-testmod" {
+			sourceSet sourceSets.testmod
+		}
 	}
+}
+
+// testmod 的接线按 Loom configureSourceSet 的 dependsOn 口径：
+// output 加进 Compile/RuntimeClasspath，并把 main/client 的 CompileClasspath/RuntimeClasspath 配置继承过来
+// （MC 与映射类都在CompileClasspath 配置里，从 implementation 继承接不到）。
+configurations {
+	testmodCompileClasspath.extendsFrom compileClasspath, clientCompileClasspath
+	testmodRuntimeClasspath.extendsFrom runtimeClasspath, clientRuntimeClasspath
+}
+sourceSets.testmod {
+	compileClasspath += sourceSets.main.output
+	compileClasspath += sourceSets.client.output
+	runtimeClasspath += sourceSets.main.output
+	runtimeClasspath += sourceSets.client.output
+}
+// 反方向也要接：runClient / IDE「Minecraft Client」debug 的启动类路径取的是 client 源集的 runtimeClasspath，
+// 不把 testmod 输出挂上去的话 dev 运行时 loader 扫不到 fluentui-testmod 的 fabric.mod.json，
+// testmod 模组整个不加载——入口按键/翻译全都无声无息地没注册（只影响 dev 运行，不进 jar）。
+sourceSets.client {
+	runtimeClasspath += sourceSets.testmod.output
 }
 
 dependencies {

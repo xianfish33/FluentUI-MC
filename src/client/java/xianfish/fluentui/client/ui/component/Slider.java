@@ -2,6 +2,7 @@ package xianfish.fluentui.client.ui.component;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import xianfish.fluentui.client.ui.animation.Animator;
+import xianfish.fluentui.client.ui.animation.Easing;
 import xianfish.fluentui.client.ui.element.TooltippingElement;
 import xianfish.fluentui.client.ui.interaction.InteractionManager;
 import xianfish.fluentui.client.ui.interaction.input.MouseDraggedEvent;
@@ -12,11 +13,11 @@ import xianfish.fluentui.client.ui.interaction.input.MouseScrolledEvent;
 import java.util.function.Consumer;
 
 public class Slider extends TooltippingElement<Slider> {
-    private static final int TRACK_H = 4, THUMB_W = 8, THUMB_H = 16;
+    private static final int TRACK_H = 3, THUMB_W = 6, THUMB_H = 12, THUMB_S = 8;
 
-    public record SliderColors(int track, int trackFill, int thumb, int thumbHover) {
+    public record SliderColors(int track, int trackFill, int thumb, int thumbHover, int thumbBorder) {
         public static SliderColors blue() {
-            return new SliderColors(0x30FFFFFF, 0xFF3B82F6, 0xFFFFFFFF, 0xFF93C5FD);
+            return new SliderColors(0x30FFFFFF, 0xFF3B82F6, 0xFFFFFFFF, 0xFF93C5FD, 0xFF555555);
         }
     }
 
@@ -77,7 +78,22 @@ public class Slider extends TooltippingElement<Slider> {
         float displayAnim = nonlinear ? (float) Math.sqrt(animVal) : animVal;
         int thumbX = ax + (int) (displayAnim * (width - THUMB_W));
         int thumbCol = hovered || dragging ? colors.thumbHover : colors.thumb;
-        e.fill(thumbX, ay, thumbX + THUMB_W, ay + height, thumbCol);
+        // 滑块是竖向居中的小方块，不是撑满全高的竖条；外面再描一圈边框。
+        int side = Math.max(4, Math.min(THUMB_S, height - 4));
+        int ty = ay + (height - side) / 2;
+        e.fill(thumbX, ty, thumbX + side, ty + side, thumbCol);
+        e.outline(thumbX, ty, side, side, colors.thumbBorder);
+    }
+
+    /**
+     * 滑块位置跟数值对齐。
+     *
+     * <p>刻度型（{@code steps > 0}）的数值是按档跳的，直接赋值会让滑块瞬移一整格，
+     * 所以走一段过渡；连续型要死死贴住光标，保持直接赋值。</p>
+     */
+    private void syncThumb() {
+        if (steps > 0) thumbAnim.to(value, 120, Easing.EASE_OUT_CUBIC);
+        else thumbAnim.set(value);
     }
 
     @Override public boolean mousePressed(MousePressedEvent e) {
@@ -85,7 +101,7 @@ public class Slider extends TooltippingElement<Slider> {
         if (InteractionManager.hovering(this, e.x(), e.y())) {
             dragging = true;
             value = toNorm((float) e.x());
-            thumbAnim.set(value);
+            syncThumb();
             if (onChanged != null) onChanged.accept(value);
             return true;
         }
@@ -95,7 +111,7 @@ public class Slider extends TooltippingElement<Slider> {
     @Override public boolean mouseDragged(MouseDraggedEvent e) {
         if (!dragging || e.button() != 0) return false;
         value = toNorm((float) e.x());
-        thumbAnim.set(value);
+        syncThumb();
         if (onChanged != null) onChanged.accept(value);
         return true;
     }
@@ -110,7 +126,7 @@ public class Slider extends TooltippingElement<Slider> {
         if (!visible || !InteractionManager.hovering(this, e.x(), e.y())) return false;
         float step = steps > 0 ? 1f / steps : 0.02f;
         value = clamp(value - (float) e.vertical() * step);
-        thumbAnim.set(value);
+        syncThumb();
         if (onChanged != null) onChanged.accept(value);
         return true;
     }

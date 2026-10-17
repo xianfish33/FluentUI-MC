@@ -13,7 +13,8 @@ public class Toggle extends TooltippingElement<Toggle> {
 
     public record ToggleColors(int trackOn, int trackOff, int slider, int sliderShadow) {
         public static ToggleColors blue() {
-            return new ToggleColors(0xFF3B82F6, 0x50000000, 0xFFFFFFFF, 0x40000000);
+            // 关态用共用底色，不在半透明黑上叠半透明黑。
+            return new ToggleColors(0xFF3B82F6, 0xFF222222, 0xFFFFFFFF, 0x40000000);
         }
     }
 

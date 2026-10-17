@@ -10,7 +10,8 @@ import xianfish.fluentui.client.ui.interaction.input.MousePressedEvent;
 import xianfish.fluentui.client.ui.interaction.InteractionManager;
 
 public class SelectBox extends TooltippingElement<SelectBox> {
-    private static final int SIZE = 9, GAP = 1;
+    // GAP 是选中块相对外框的内缩量：边框与填充之间留出未选中时的背景色。
+    private static final int SIZE = 9, GAP = 2;
 
     public record SelectBoxColors(int border, int bg, int fill,
                                    int hoverBorder, int hoverBg, int hoverFill) {
@@ -44,6 +45,7 @@ public class SelectBox extends TooltippingElement<SelectBox> {
         e.fill(ax + 1, ay + 1, ax + width - 1, ay + height - 1, bgCol);
 
         if (selected) {
+            // 选中块按 GAP 内缩：边框与填充之间露出未选中时的背景色，不拿背景当填充物铺满。
             e.fill(ax + GAP, ay + GAP, ax + width - GAP, ay + height - GAP, colors.fill);
         }
     }

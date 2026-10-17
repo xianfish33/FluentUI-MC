@@ -4,13 +4,13 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import xianfish.fluentui.client.ui.animation.Animator;
 import xianfish.fluentui.client.ui.animation.Easing;
-import xianfish.fluentui.client.ui.util.Colors;
 import xianfish.fluentui.client.ui.element.Element;
 import xianfish.fluentui.client.ui.element.TooltippingElement;
 import xianfish.fluentui.client.ui.interaction.input.HoverEvent;
 import xianfish.fluentui.client.ui.interaction.input.MousePressedEvent;
 import xianfish.fluentui.client.ui.interaction.input.MouseScrolledEvent;
 import xianfish.fluentui.client.ui.interaction.InteractionManager;
+import xianfish.fluentui.client.ui.util.TextDrawUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -32,12 +32,23 @@ import java.util.function.Consumer;
 public class SelectDropdown extends TooltippingElement<SelectDropdown> {
     private static final int DD_OFF = 2, OPT_H = 20, PAD_X = 8, BTN_H = 22;
 
-    public record DropdownColors(int btnBg, int btnBorder, int btnText,
+    /** 左边框相对其余三边的缩放：0.5 表示半宽。 */
+    private static final float LEFT_BORDER_SCALE = 0.5f;
+
+    /**
+     * 下拉配色：本体取 {@code btn*} 各项，面板取 {@code dd*} 与 {@code opt*} 各项。
+     * 常底色与边框跟输入框逐值对齐（{@code 0xFF222222} / {@code 0xFF555555}，全不透明），
+     * 不沿用旧值的半透明黑底与常态蓝边。
+     * <p>{@code btnFocusBorder} 对应输入框的聚焦边框：本体不是可聚焦元素，聚焦态由
+     * “面板展开”充当——展开即激活，与输入框拿到焦点同色。
+     * {@code optHoverBg}/{@code optSelBg} 取输入框的选区底色（0x403B82F6）同一不透明度。</p>
+     */
+    public record DropdownColors(int btnBg, int btnBorder, int btnFocusBorder, int btnText,
                                   int ddBg, int ddBorder, int optText,
                                   int optHoverBg, int optSelBg, int optAccent) {
         public static DropdownColors blue() {
-            return new DropdownColors(0x30000000, 0xFF3B82F6, 0xFFFFFFFF,
-                0xFF1E1E1E, 0xFF333333, 0xFFFFFFFF, 0x303B82F6, 0x303B82F6, 0xFF3B82F6);
+            return new DropdownColors(0xFF222222, 0xFF555555, 0xFF3B82F6, 0xFFFFFFFF,
+                0xFF222222, 0xFF555555, 0xFFFFFFFF, 0x403B82F6, 0x403B82F6, 0xFF3B82F6);
         }
     }
 
@@ -67,9 +78,15 @@ public class SelectDropdown extends TooltippingElement<SelectDropdown> {
         if (!visible || font == null) return; layout();
         int ax = getAbsoluteX(), ay = getAbsoluteY();
         boolean hov = open || (mx >= ax && mx <= ax + width && my >= ay && my <= ay + BTN_H);
-        int bg = hov ? Colors.lerp(colors.btnBg, 0x50000000, 0.6f) : colors.btnBg;
-        e.fill(ax, ay, ax + width, ay + BTN_H, bg);
-        e.outline(ax, ay, width, BTN_H, colors.btnBorder);
+        // 背景恒定全不透明，与输入框一致：悬停只改边框一档，不做半透明提亮。
+        e.fill(ax, ay, ax + width, ay + BTN_H, colors.btnBg);
+        // 边框三档与输入框逐档对应：常态灰、悬停亮一档、展开走聚焦蓝。
+        // 左边按半宽画、其余三边满宽：outline 只能整圈同宽，这圈边框得拆开自己拼。
+        int borderColor = open ? colors.btnFocusBorder : hov ? 0xFF777777 : colors.btnBorder;
+        e.fill(ax, ay, ax + width, ay + 1, borderColor);
+        e.fill(ax, ay + BTN_H - 1, ax + width, ay + BTN_H, borderColor);
+        e.fill(ax + width - 1, ay, ax + width, ay + BTN_H, borderColor);
+        TextDrawUtil.drawScaledRect(e, ax, ay, 1, BTN_H, borderColor, LEFT_BORDER_SCALE);
         Component sel = selectedText();
         Component label = sel.getString().isEmpty() ? Component.literal("\u25BC")
                 : sel.copy().append(" \u25BC");

@@ -5,21 +5,23 @@ import net.minecraft.network.chat.Component;
 import xianfish.fluentui.client.ui.animation.Animator;
 import xianfish.fluentui.client.ui.animation.Easing;
 import xianfish.fluentui.client.ui.util.Colors;
-import xianfish.fluentui.client.ui.element.Element;
+import xianfish.fluentui.client.ui.element.TooltippingElement;
 import xianfish.fluentui.client.ui.interaction.input.MousePressedEvent;
 import xianfish.fluentui.client.ui.interaction.input.MouseReleasedEvent;
 import xianfish.fluentui.client.ui.interaction.InteractionManager;
 
-public class Button extends Element<Button> {
+public class Button extends TooltippingElement<Button> {
     public record ButtonColors(int bg, int border, int text,
                                 int hoverBg, int hoverBorder,
                                 int pressBg, int pressBorder, int disabledText) {
         public static ButtonColors blue() {
-            return new ButtonColors(BLACK_30, BLUE, WHITE, BLACK_40, BLUE_LIGHT, WHITE_20, BLUE_SOFT, WHITE_50);
+            return new ButtonColors(BG, REST_BORDER, WHITE, BG_HOVER, HOVER_BORDER, ACCENT, ACCENT, WHITE_50);
         }
-        private static final int BLUE = 0xFF3B82F6, BLUE_LIGHT = 0xFF60A5FA, BLUE_SOFT = 0xFF93C5FD;
-        private static final int WHITE = 0xFFFFFFFF, WHITE_20 = 0x33FFFFFF, WHITE_50 = 0x80FFFFFF;
-        private static final int BLACK_30 = 0x4D000000, BLACK_40 = 0x66000000;
+        // 与输入框、下拉、菜单、列表共用一套：底色与边框分层，激活态才上强调色。
+        private static final int BG = 0xFF222222, BG_HOVER = 0xFF2E2E2E;
+        private static final int REST_BORDER = 0xFF555555, HOVER_BORDER = 0xFF777777;
+        private static final int ACCENT = 0xFF3B82F6;
+        private static final int WHITE = 0xFFFFFFFF, WHITE_50 = 0x80FFFFFF;
     }
 
     protected ButtonColors colors;
@@ -60,7 +62,8 @@ public class Button extends Element<Button> {
 
         int ax = getAbsoluteX(), ay = getAbsoluteY();
         e.fill(ax, ay, ax + width, ay + height, cBg);
-        if (borderAlpha > 0.01f) e.outline(ax, ay, width, height, Colors.lerp(0x00000000, cBorder, borderAlpha));
+        // 边框常态可见：rest 用共用边框色，悬停动画把边框推亮。
+        e.outline(ax, ay, width, height, cBorder);
 
         int tw = font.width(text), tx = ax + (width - tw) / 2, ty = ay + (height - font.lineHeight) / 2;
         e.text(font, text, tx, ty, cText);    }

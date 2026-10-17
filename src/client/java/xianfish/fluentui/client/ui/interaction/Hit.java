@@ -70,4 +70,28 @@ public final class Hit {
         List<Element<?>> path = hitPath(layoutElement, mx, my);
         return path.isEmpty() ? null : path.get(path.size() - 1);
     }
+
+    /**
+     * 最深的、矩形含点的布局容器。
+     *
+     * <p>{@link #topmost} 在没命中任何子元素时返回 {@code null}，那正是「点在容器空白处」。
+     * 本方法给出这种情况下的分发起点：空白处归容器自己，按末位优先往下钻，返回含点的最深布局容器。</p>
+     *
+     * @param root 根布局容器
+     * @param mx   屏幕横坐标
+     * @param my   屏幕纵坐标
+     * @return 含点的最深布局容器；点不在 {@code root} 矩形内时返回 {@code null}
+     */
+    public static LayoutElement<?> deepestLayoutAt(LayoutElement<?> root, double mx, double my) {
+        if (root == null || !root.isVisible()) return null;
+        if (!Element.isHit(root, mx, my)) return null;
+        List<Element<?>> all = candidates(root);
+        for (int i = all.size() - 1; i >= 0; i--) {
+            if (all.get(i) instanceof LayoutElement<?> l) {
+                LayoutElement<?> deeper = deepestLayoutAt(l, mx, my);
+                if (deeper != null) return deeper;
+            }
+        }
+        return root;
+    }
 }

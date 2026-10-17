@@ -11,7 +11,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 @SuppressWarnings("unchecked")
-public class ItemList<T> extends ListView<T> { // ItemList不是ItemView的list，其实是可编辑的ListView
+public class ItemList<T> extends ListView<T> { // ItemList不是ItemView的list，是可编辑的List
     private static final int DEL_W = 14;
 
     private int delPad() { return Math.max(1, (itemHeight - DEL_W) / 2); }
@@ -132,7 +132,7 @@ public class ItemList<T> extends ListView<T> { // ItemList不是ItemView的list�
             int tx = dx + (DEL_W - font.width(check)) / 2;
             e.text(font, check, tx, dy + (dh - font.lineHeight) / 2 + 1, 0xFFFFFFFF);
         } else {
-            e.fill(ax, ry, ax + width, ry + itemHeight, 0x303B82F6);
+            e.fill(ax, ry, ax + width, ry + itemHeight, 0x403B82F6);
             net.minecraft.network.chat.Component label = net.minecraft.network.chat.Component.translatable("fluentui.itemlist.add_item");
             e.text(font, label, ax + PAD_X, ry + (itemHeight - font.lineHeight) / 2, 0xCCFFFFFF);
         }

@@ -141,6 +141,18 @@ public class Stepper extends FocusableElement<Stepper> {
 
     private void cancelEdit() { editing = false; }
 
+    /**
+     * 点击左右增减钮时的编辑态收口：若正在输入，先把输入缓存落盘（提交进 {@link #value}），
+     * 控件随之变为「未输入态的聚焦」（{@code editing=false}，焦点不变），然后直接
+     * {@code inc()}/{@code dec()}，不再重新进入编辑态。
+     *
+     * <p>不收口就会同时撞上三件竞态症状：显示读的是编辑缓冲，所以增减后看起来数值没变；
+     * 步进读的是 {@code value}，也就是编辑触发前的旧值，所以是"从输入触发前开始计数"；
+     * 之后再失焦只把 {@code editing} 置 false 而不提交，输入的数字整个丢掉。
+     * 点击按钮是明确的"就用这个数"动作，所以落盘而不是撤销。</p>
+     */
+    private void endEditForStep() { if (editing) commitEdit(); }
+
     private static String formatRaw(double v) {
         if (v == (long) v) return String.valueOf((long) v);
         String s = String.format("%.2f", v);
@@ -234,8 +246,9 @@ public class Stepper extends FocusableElement<Stepper> {
         refreshHover(e.x(), e.y());
 
         int lx = ax, lw = BTN_W, rx = ax + width - BTN_W;
-        if (e.x() >= lx && e.x() <= lx + lw) { dec(); return true; }
-        if (e.x() >= rx && e.x() <= rx + BTN_W) { inc(); return true; }
+        // 增减钮先结束编辑态再步进：编辑缓冲里的数字先提交进 value，步进在它之上进行。
+        if (e.x() >= lx && e.x() <= lx + lw) { endEditForStep(); dec(); return true; }
+        if (e.x() >= rx && e.x() <= rx + BTN_W) { endEditForStep(); inc(); return true; }
 
         // 命中中央区即已由点击链转移算法领焦（Stepper 是 FocusableElement），
         // 这里只读 focused。
