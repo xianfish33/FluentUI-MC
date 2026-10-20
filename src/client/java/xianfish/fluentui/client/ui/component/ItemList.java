@@ -19,6 +19,8 @@ public class ItemList<T> extends ListView<T> { // ItemList不是ItemView的list�
     private BiConsumer<T, StackPanel> rowRenderer;
     private Consumer<ListView<T>> onChange;
     private int hoveredDel = -1;
+    private int pendingDelIdx = -1;
+    private boolean pendingAddEntry, pendingConfirm;
 
     private boolean adding;
     private Consumer<String> onAdd;
@@ -69,6 +71,7 @@ public class ItemList<T> extends ListView<T> { // ItemList不是ItemView的list�
         int dy = iy + delPad();
         int dh = ib - iy - delPad() * 2;
         if (idx == hoveredDel) e.fill(dx, dy, dx + DEL_W, dy + dh, 0x80EF4444);
+        if (idx == pendingDelIdx) e.fill(dx, dy, dx + DEL_W, dy + dh, 0x40EF4444);
         int tx = dx + (DEL_W - font.width("×")) / 2;
         e.text(font, "×", tx, dy + (dh - font.lineHeight) / 2 + 1, 0xFFFF6666);
     }
@@ -85,18 +88,20 @@ public class ItemList<T> extends ListView<T> { // ItemList不是ItemView的list�
     }
 
     @Override protected boolean clickRow(double mx, double my, int btn) {
-        int ax = getAbsoluteX(), ay = getAbsoluteY();
         if (hoveredIdx < 0 || hoveredIdx >= data.size()) return false;
-        int iy = ay + hoveredIdx * itemHeight - (int) scrollAnim.get();
+        if (delHit(hoveredIdx, mx, my)) { pendingDelIdx = hoveredIdx; return true; }
+        return false;
+    }
+
+    /** 行删除钮（×）的矩形判定：行号与坐标分开给，按下记录与松开复核共用一处算法。 */
+    private boolean delHit(int idx, double mx, double my) {
+        if (idx < 0 || idx >= data.size()) return false;
+        int ax = getAbsoluteX(), ay = getAbsoluteY();
+        int iy = ay + idx * itemHeight - (int) scrollAnim.get();
         int dx = ax + width - DEL_W - delPad();
         int dy = iy + delPad();
         int dh = itemHeight - delPad() * 2;
-        if (mx >= dx && mx <= dx + DEL_W && my >= dy && my <= dy + dh) {
-            data.remove(hoveredIdx);
-            if (onChange != null) onChange.accept(this);
-            return true;
-        }
-        return false;
+        return mx >= dx && mx <= dx + DEL_W && my >= dy && my <= dy + dh;
     }
 
     @Override public void extractRenderState(GuiGraphicsExtractor e, int mx, int my, float d) {
@@ -127,12 +132,12 @@ public class ItemList<T> extends ListView<T> { // ItemList不是ItemView的list�
             int dy = ry + delPad();
             int dh = itemHeight - delPad() * 2;
             boolean hov = mx >= dx && mx <= dx + DEL_W && my >= dy && my <= dy + dh;
-            e.fill(dx, dy, dx + DEL_W, dy + dh, hov ? 0xFF3B82F6 : 0x8060A5FA);
+            e.fill(dx, dy, dx + DEL_W, dy + dh, pendingConfirm ? 0xFF60A5FA : hov ? 0xFF3B82F6 : 0x8060A5FA);
             String check = "\u2714";
             int tx = dx + (DEL_W - font.width(check)) / 2;
             e.text(font, check, tx, dy + (dh - font.lineHeight) / 2 + 1, 0xFFFFFFFF);
         } else {
-            e.fill(ax, ry, ax + width, ry + itemHeight, 0x403B82F6);
+            e.fill(ax, ry, ax + width, ry + itemHeight, pendingAddEntry ? 0x603B82F6 : 0x403B82F6);
             net.minecraft.network.chat.Component label = net.minecraft.network.chat.Component.translatable("fluentui.itemlist.add_item");
             e.text(font, label, ax + PAD_X, ry + (itemHeight - font.lineHeight) / 2, 0xCCFFFFFF);
         }
@@ -170,13 +175,36 @@ public class ItemList<T> extends ListView<T> { // ItemList不是ItemView的list�
         if (adding) {
             if (e.button() == 1) { if (addHit(e.x(), e.y())) { addBox.mousePressed(e); return true; } return false; }
             if (e.button() != 0) return false;
-            if (confirmHit(e.x(), e.y())) { confirmAdd(); return true; }
+            if (confirmHit(e.x(), e.y())) { pendingConfirm = true; return true; }
             if (addHit(e.x(), e.y())) { addBox.mousePressed(e); return true; }
             return super.mousePressed(e);
         }
         if (e.button() != 0) return false;
-        if (addHit(e.x(), e.y())) { adding = true; addBox.focus(); return true; }
+        if (addHit(e.x(), e.y())) { pendingAddEntry = true; return true; }
         return super.mousePressed(e);
+    }
+
+    @Override public boolean pressReleased(MouseReleasedEvent e, boolean hit) {
+        if (adding && addHit(e.x(), e.y())) addBox.mouseReleased(e);
+        if (pendingConfirm) {
+            pendingConfirm = false;
+            if (hit && confirmHit(e.x(), e.y())) confirmAdd();
+            return true;
+        }
+        if (pendingAddEntry) {
+            pendingAddEntry = false;
+            if (hit && addHit(e.x(), e.y())) { adding = true; addBox.focus(); }
+            return true;
+        }
+        if (pendingDelIdx >= 0) {
+            int pd = pendingDelIdx; pendingDelIdx = -1;
+            if (hit && delHit(pd, e.x(), e.y())) {
+                data.remove(pd);
+                if (onChange != null) onChange.accept(this);
+            }
+            return true;
+        }
+        return super.pressReleased(e, hit);
     }
 
     @Override public boolean mouseReleased(MouseReleasedEvent e) {

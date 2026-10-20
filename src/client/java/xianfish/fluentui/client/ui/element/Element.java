@@ -135,6 +135,12 @@ public abstract class Element<T extends Element<T>> {
     public void mouseMoved(HoverEvent e) {}
     public void mouseExited(HoverEvent e) {}
 
+	/**
+	 * press 生命周期收尾：交互管理器把松开事件派发给按下消费者（pressOwner）或鼠标捕获者时调用，
+	 * {@code hit} 表示松开这一点是否命中本元素。默认按普通松开转发。
+	 */
+	public boolean pressReleased(MouseReleasedEvent e, boolean hit) { return mouseReleased(e); }
+
     /**
      * 当明确用户交互（点击 / 松开 / 拖拽 / 滚轮）落在本元素命中区域<em>之外</em>，且本元素位于浮层树中时，由 {@code InteractionManager} 调用
      * （外部交互钩子 {@code onOutsideInteraction()}，明确输入专属）。默认空实现。

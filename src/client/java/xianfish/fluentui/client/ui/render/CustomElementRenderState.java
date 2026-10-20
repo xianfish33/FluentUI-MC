@@ -11,16 +11,13 @@ import org.jspecify.annotations.Nullable;
 /**
  * 自绘元素状态：清单里的一条自定义条目，形状由 {@link VertexPainter} 现场写。
  *
- * <p>形态照抄 vanilla 的 {@code ColoredRectangleRenderState}（同为 record、同为「矩形 + 矩阵快照 +
- * 两色 + scissor」），差别只有一处：顶点不写死成两色四边形，改为交给 {@link #painter()}。
- * 照抄的好处是 {@code bounds()} 的算法、{@code scissorArea()} 的自洽方式都与 vanilla 逐字一致，
- * 排序契约不需要额外论证。</p>
+ * <p>形态形同原版的 {@code ColoredRectangleRenderState}
+ * 差别只有一处：顶点不写死成两色四边形，改为交给 {@link #painter()}。
  *
- * <p>{@code bounds} 是构造时算好的缓存值，不是每次 {@code bounds()} 现算：排序一帧要问上百次，
- * 现算等于每问一次重跑一次矩阵变换。</p>
+ * <p>{@code bounds} 是构造时算好的缓存值，不是每次 {@code bounds()} 实时计算</p>
  *
- * <p>顶点为什么能在渲染阶段才写：{@code buildVertices} 拿到的是渲染期的 {@code VertexConsumer}，
- * 而矩阵是提交那一刻的快照 —— 两者都不是提交瞬间能拿到的，所以只能延迟到渲染期再吐顶点。</p>
+ * <p>顶点为什么能在渲染阶段才写：{@code buildVertices} 拿到的是渲染期的 {@code VertexConsumer}，而矩阵是提交那一刻的快照。
+ * 两者都不是提交瞬间能拿到的，所以只能延迟到渲染期再吐顶点。</p>
  */
 public record CustomElementRenderState(
 		RenderPipeline pipeline,

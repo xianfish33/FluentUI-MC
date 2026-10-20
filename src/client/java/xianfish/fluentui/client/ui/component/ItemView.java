@@ -10,9 +10,9 @@ import xianfish.fluentui.client.ui.animation.Animator;
 import xianfish.fluentui.client.ui.animation.Easing;
 import xianfish.fluentui.client.ui.util.Colors;
 import xianfish.fluentui.client.ui.element.TooltippingElement;
-import xianfish.fluentui.client.ui.interaction.InteractionManager;
 import xianfish.fluentui.client.ui.interaction.input.MousePressedEvent;
 import xianfish.fluentui.client.ui.interaction.input.MouseReleasedEvent;
+import xianfish.fluentui.client.ui.interaction.InteractionManager;
 
 import java.util.ArrayList;
 import java.util.List;

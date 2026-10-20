@@ -247,7 +247,7 @@ public class InteractionManager {
                 mouseCapture.mouseExited(new HoverEvent(e.x(), e.y(), e.modifiers()));
             }
 
-            boolean consumed = mouseCapture.mouseReleased(e);
+            boolean consumed = mouseCapture.pressReleased(e, isHover(mouseCapture, mx, my));
             releaseMouseCapture();
             if (consumed) return true;
         }
@@ -258,7 +258,7 @@ public class InteractionManager {
             Element<?> owner = pressOwner;
             pressOwner = null;
             if ((pressFlags & Element.CAPTURE_RELEASE) != 0 && owner.isVisible())
-                owner.mouseReleased(e);
+                owner.pressReleased(e, isHover(owner, mx, my));
             pressFlags = 0;
             return true;
         }

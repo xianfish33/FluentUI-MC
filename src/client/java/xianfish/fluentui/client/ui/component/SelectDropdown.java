@@ -9,8 +9,8 @@ import xianfish.fluentui.client.ui.element.TooltippingElement;
 import xianfish.fluentui.client.ui.interaction.input.HoverEvent;
 import xianfish.fluentui.client.ui.interaction.input.MousePressedEvent;
 import xianfish.fluentui.client.ui.interaction.input.MouseScrolledEvent;
+import xianfish.fluentui.client.ui.interaction.input.MouseReleasedEvent;
 import xianfish.fluentui.client.ui.interaction.InteractionManager;
-import xianfish.fluentui.client.ui.util.TextDrawUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -32,8 +32,21 @@ import java.util.function.Consumer;
 public class SelectDropdown extends TooltippingElement<SelectDropdown> {
     private static final int DD_OFF = 2, OPT_H = 20, PAD_X = 8, BTN_H = 22;
 
-    /** 左边框相对其余三边的缩放：0.5 表示半宽。 */
-    private static final float LEFT_BORDER_SCALE = 0.5f;
+    /** 选中项强调色条的原始宽度，缩放前的整数矩形宽度。 */
+    private static final int SEL_ACCENT_W = 3;
+
+    /** 选中项的强调色条相对原宽度的缩放：0.5 表示半宽。 */
+    private static final float SEL_ACCENT_SCALE = 0.5f;
+
+    /**
+     * 强调色条的实际宽度：相对原宽度缩放后取整到整像素。
+     *
+     * <p>缩放矩阵能画出半像素宽的矩形，但抗锯齿会把边界摊到相邻两列像素上，
+     * 看到的是一条灰边而不是一条实色条。取整之后边界正好落在像素格上，才是要的竖条。</p>
+     */
+    private static int selAccentWidth() {
+        return Math.max(1, Math.round(SEL_ACCENT_W * SEL_ACCENT_SCALE));
+    }
 
     /**
      * 下拉配色：本体取 {@code btn*} 各项，面板取 {@code dd*} 与 {@code opt*} 各项。
@@ -58,6 +71,8 @@ public class SelectDropdown extends TooltippingElement<SelectDropdown> {
     protected boolean open;
     protected Consumer<Integer> onChanged;
     protected DropPanel dropPanel;
+    protected final Animator pressAnim = new Animator();
+    private boolean pending;
 
     public SelectDropdown(int w, DropdownColors c) { super(w, BTN_H); this.colors = c; }
     public SelectDropdown(int w) { this(w, DropdownColors.blue()); }
@@ -81,12 +96,9 @@ public class SelectDropdown extends TooltippingElement<SelectDropdown> {
         // 背景恒定全不透明，与输入框一致：悬停只改边框一档，不做半透明提亮。
         e.fill(ax, ay, ax + width, ay + BTN_H, colors.btnBg);
         // 边框三档与输入框逐档对应：常态灰、悬停亮一档、展开走聚焦蓝。
-        // 左边按半宽画、其余三边满宽：outline 只能整圈同宽，这圈边框得拆开自己拼。
-        int borderColor = open ? colors.btnFocusBorder : hov ? 0xFF777777 : colors.btnBorder;
-        e.fill(ax, ay, ax + width, ay + 1, borderColor);
-        e.fill(ax, ay + BTN_H - 1, ax + width, ay + BTN_H, borderColor);
-        e.fill(ax + width - 1, ay, ax + width, ay + BTN_H, borderColor);
-        TextDrawUtil.drawScaledRect(e, ax, ay, 1, BTN_H, borderColor, LEFT_BORDER_SCALE);
+        e.outline(ax, ay, width, BTN_H, open ? colors.btnFocusBorder : hov ? 0xFF777777 : colors.btnBorder);
+        int pa = (int) (pressAnim.get() * 0x50);
+        if (pa > 0) e.fill(ax + 1, ay + 1, ax + width - 1, ay + BTN_H - 1, (pa << 24) | 0xFFFFFF);
         Component sel = selectedText();
         Component label = sel.getString().isEmpty() ? Component.literal("\u25BC")
                 : sel.copy().append(" \u25BC");
@@ -131,9 +143,17 @@ public class SelectDropdown extends TooltippingElement<SelectDropdown> {
         if (!visible || e.button() != 0) return false;
         int ay = getAbsoluteY();
         if (e.y() >= ay && e.y() <= ay + BTN_H && e.x() >= getAbsoluteX() && e.x() <= getAbsoluteX() + width) {
-            toggle(); return true;
+            pending = true;
+            pressAnim.animate(0, 1, 60, Easing.EASE_IN_CUBIC);
+            return true;
         }
         return false;
+    }
+
+    @Override public boolean pressReleased(MouseReleasedEvent e, boolean hit) {
+        boolean wp = pending; pending = false; pressAnim.animate(1, 0, 100, Easing.EASE_OUT_CUBIC);
+        if (wp && hit) { toggle(); return true; }
+        return wp;
     }
 
     private class DropPanel extends Element<DropPanel> {
@@ -141,6 +161,7 @@ public class SelectDropdown extends TooltippingElement<SelectDropdown> {
         final Animator revealAnim = new Animator();
         final Animator scrollAnim = new Animator();
         int hoveredIdx = -1;
+        int pendingIdx = -1;
 
         /**
          * {@code close()} 关闭：面板自身不直接摘除节点，而是委托给属主 {@code closePanel()}，
@@ -182,16 +203,22 @@ public class SelectDropdown extends TooltippingElement<SelectDropdown> {
             e.nextStratum();
             e.enableScissor(px, py, px + width, py + (int) curH);
             e.fill(px, py, px + width, py + (int) fullH, colors.ddBg);
-            e.outline(px, py, width, (int) fullH, colors.ddBorder);
 
+            int accentW = selAccentWidth();
             for (int i = 0; i < options.size(); i++) {
                 int oy = py + i * OPT_H - (int) scrollAnim.get(), ob = oy + OPT_H;
                 if (ob < py || oy > py + (int) curH) continue;
                 boolean sel = i == selIdx, h = mx >= px && mx <= px + width && my >= oy && my <= ob;
                 int optBg = sel ? colors.optSelBg : h ? colors.optHoverBg : 0x00000000;
                 if (optBg != 0) e.fill(px + 1, oy, px + width - 1, ob, optBg);
-                if (sel) e.fill(px + 1, oy, px + 4, ob, colors.optAccent);
-                e.text(font, options.get(i), px + PAD_X + (sel ? 4 : 0), oy + (OPT_H - font.lineHeight) / 2, colors.optText);            }
+                if (i == pendingIdx) e.fill(px + 1, oy, px + width - 1, ob, 0x603B82F6);
+                if (sel) e.fill(px + 1, oy, px + 1 + accentW, ob, colors.optAccent);
+                e.text(font, options.get(i), px + PAD_X + (sel ? accentW + 1 : 0), oy + (OPT_H - font.lineHeight) / 2, colors.optText);
+            }
+
+                        // 边框最后画：条目底色的竖向范围随滚动变化，会扫过面板底部那一行，
+            // 边框若先画就会被后面的底色整段盖掉。
+            e.outline(px, py, width, (int) fullH, colors.ddBorder);
 
             // 悬停索引不在渲染期写：hoveredIdx 由 refreshHover（输入路径）独占写入。
             e.disableScissor();
@@ -225,14 +252,22 @@ public class SelectDropdown extends TooltippingElement<SelectDropdown> {
 
         @Override public boolean mousePressed(MousePressedEvent e) {
             if (e.button() != 0) return false;
-            // 先按事件坐标当场算，再读 hoveredIdx：选中的是“这一刻光标压着的那一项”，
-            // 而非上一帧渲染时留下的值。
+            // 先按事件坐标当场算，再读 hoveredIdx：记下的是“这一刻光标压着的那一项”，
+            // 而非上一帧渲染时留下的值；动作在松开回传命中后执行。
             refreshHover(e.x(), e.y());
-            if (hoveredIdx >= 0) {
-                selIdx = hoveredIdx; if (onChanged != null) onChanged.accept(selIdx);
+            if (hoveredIdx >= 0) { pendingIdx = hoveredIdx; return true; }
+            if (shapeHit(e.x(), e.y())) { closePanel(); return true; }
+            return false;
+        }
+
+        @Override public boolean pressReleased(MouseReleasedEvent e, boolean hit) {
+            int pi = pendingIdx; pendingIdx = -1;
+            if (pi < 0) return false;
+            refreshHover(e.x(), e.y());
+            if (hit && hoveredIdx == pi) {
+                selIdx = pi; if (onChanged != null) onChanged.accept(selIdx);
                 closePanel(); return true;  // 关闭收口集中复位状态
             }
-            if (shapeHit(e.x(), e.y())) { closePanel(); return true; }
             return false;
         }
 

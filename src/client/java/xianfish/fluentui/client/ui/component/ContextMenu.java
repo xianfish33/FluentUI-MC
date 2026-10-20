@@ -8,6 +8,7 @@ import xianfish.fluentui.client.ui.element.Element;
 import xianfish.fluentui.client.ui.interaction.InteractionManager;
 import xianfish.fluentui.client.ui.interaction.input.HoverEvent;
 import xianfish.fluentui.client.ui.interaction.input.MousePressedEvent;
+import xianfish.fluentui.client.ui.interaction.input.MouseReleasedEvent;
 import xianfish.fluentui.client.ui.interaction.input.MouseScrolledEvent;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,6 +45,7 @@ public class ContextMenu extends Element<ContextMenu> {
     protected ContextMenuColors colors;
     protected List<MenuItem> items = new ArrayList<>();
     protected int hoveredIdx = -1, maxH = 260;
+    protected int pendingIdx = -1;
     protected boolean open;
     protected final Animator revealAnim = new Animator();
     protected final Animator scrollAnim = new Animator();
@@ -120,6 +122,7 @@ public class ContextMenu extends Element<ContextMenu> {
         revealAnim.set(0);
         scrollAnim.set(0);
         hoveredIdx = -1;
+        pendingIdx = -1;
         if (InteractionManager.active != null) InteractionManager.active.overlays().remove(this);
     }
 
@@ -160,6 +163,7 @@ public class ContextMenu extends Element<ContextMenu> {
             boolean hov = owned && mx >= ax && mx <= ax + width && my >= iy && my <= ib;
             if (item.bgColor != 0) e.fill(ax + 1, iy, ax + width - 1, ib, item.bgColor);
             if (hov && item.enabled) { e.fill(ax + 1, iy, ax + width - 1, ib, colors.hoverBg); }
+            if (i == pendingIdx && item.enabled) e.fill(ax + 1, iy, ax + width - 1, ib, 0x603B82F6);
             int tc = item.enabled ? colors.text : colors.disabledText;
             e.text(font, item.text, ax + PAD_X, iy + (ITEM_H - font.lineHeight) / 2, tc);
         }
@@ -197,15 +201,23 @@ public class ContextMenu extends Element<ContextMenu> {
 
     @Override public boolean mousePressed(MousePressedEvent e) {
         if (!open || !visible) return false;
-        // 命中本节点：按事件坐标当场算本帧该高亮/该点中哪一项，再读 hoveredIdx（不依赖上一帧渲染）。
+        // 命中本节点：按事件坐标当场算本帧该高亮/该待选哪一项，再读 hoveredIdx（不依赖上一帧渲染）。
         refreshHover(e.x(), e.y());
-        if (e.button() == 0 && hoveredIdx >= 0) {
-            MenuItem item = items.get(hoveredIdx);
+        if (e.button() == 0 && hoveredIdx >= 0) pendingIdx = hoveredIdx;
+        return true;
+    }
+
+    @Override public boolean pressReleased(MouseReleasedEvent e, boolean hit) {
+        int pi = pendingIdx; pendingIdx = -1;
+        if (pi < 0) return false;
+        refreshHover(e.x(), e.y());
+        if (hit && hoveredIdx == pi && pi < items.size()) {
+            MenuItem item = items.get(pi);
             if (item.enabled && item.action != null) item.action.run();
             if (item.closeOnClick) hide();
             return true;
         }
-        return true;
+        return false;
     }
 
     @Override public boolean mouseScrolled(MouseScrolledEvent e) {

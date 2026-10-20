@@ -29,6 +29,7 @@ public class ListView<T> extends TooltippingElement<ListView<T>> {
     protected ListViewColors colors;
     protected List<T> data = new ArrayList<>();
     protected int selIdx = -1, hoveredIdx = -1;
+    protected int pendingIdx = -1;
     protected Consumer<Integer> onSelect;
     protected final Animator scrollAnim = new Animator();
     protected float scrollOff;
@@ -68,6 +69,7 @@ public class ListView<T> extends TooltippingElement<ListView<T>> {
             } else if (hov) {
                 e.fill(ax + 1, iy, ax + width - 1, ib, colors.hoverBg);
             }
+            if (i == pendingIdx) e.fill(ax + 1, iy, ax + width - 1, ib, 0x603B82F6);
 
             drawRow(data.get(i), i, sel, hov, e, ax, iy, ib);
         }
@@ -138,7 +140,7 @@ public class ListView<T> extends TooltippingElement<ListView<T>> {
             sbDragging = true; sbDragStartMy = e.y(); sbDragStartScroll = scrollAnim.get(); return true;
         }
         if (clickRow(e.x(), e.y(), e.button())) return true;
-        if (hoveredIdx >= 0) { selIdx = hoveredIdx; if (onSelect != null) onSelect.accept(selIdx); }
+        if (hoveredIdx >= 0) pendingIdx = hoveredIdx;
         return true;
     }
 
@@ -168,6 +170,15 @@ public class ListView<T> extends TooltippingElement<ListView<T>> {
     @Override public boolean mouseReleased(MouseReleasedEvent e) {
         if (sbDragging) { sbDragging = false; return true; }
         return false;
+    }
+
+    @Override public boolean pressReleased(MouseReleasedEvent e, boolean hit) {
+        if (sbDragging) { sbDragging = false; return true; }
+        int pi = pendingIdx; pendingIdx = -1;
+        if (pi < 0) return false;
+        refreshHover(e.x(), e.y());
+        if (hit && pi == hoveredIdx) { selIdx = pi; if (onSelect != null) onSelect.accept(selIdx); }
+        return true;
     }
 
     @Override public boolean mouseScrolled(MouseScrolledEvent e) {

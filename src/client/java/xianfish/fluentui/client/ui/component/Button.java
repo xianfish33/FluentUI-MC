@@ -73,10 +73,11 @@ public class Button extends TooltippingElement<Button> {
         if (InteractionManager.hovering(this, e.x(), e.y())) { pressed = true; bgAnim.animate(0, 1, 60, Easing.EASE_IN_CUBIC); return true; }
         return false;
     }
-    @Override public boolean mouseReleased(MouseReleasedEvent e) {
+    @Override public boolean mouseReleased(MouseReleasedEvent e) { return pressReleased(e, false); }
+    @Override public boolean pressReleased(MouseReleasedEvent e, boolean hit) {
         if (!enabled || e.button() != 0) return false;
         boolean wp = pressed; pressed = false; bgAnim.animate(1, 0, 100, Easing.EASE_OUT_CUBIC);
-        if (wp && InteractionManager.hovering(this, e.x(), e.y()) && action != null) action.run();
+        if (wp && hit && action != null) action.run();
         return wp;
     }
     public void setEnabled(boolean v) { enabled = v; if (!v) { hovered = false; pressed = false; } }

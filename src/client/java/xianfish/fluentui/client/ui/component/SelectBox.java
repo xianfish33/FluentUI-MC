@@ -7,6 +7,7 @@ import xianfish.fluentui.client.ui.util.Colors;
 import xianfish.fluentui.client.ui.element.TooltippingElement;
 import xianfish.fluentui.client.ui.interaction.input.HoverEvent;
 import xianfish.fluentui.client.ui.interaction.input.MousePressedEvent;
+import xianfish.fluentui.client.ui.interaction.input.MouseReleasedEvent;
 import xianfish.fluentui.client.ui.interaction.InteractionManager;
 
 public class SelectBox extends TooltippingElement<SelectBox> {
@@ -24,6 +25,8 @@ public class SelectBox extends TooltippingElement<SelectBox> {
     protected boolean selected;
     protected Runnable onClick;
     protected final Animator hoverAnim = new Animator();
+    protected final Animator pressAnim = new Animator();
+    private boolean pending;
 
     public SelectBox(SelectBoxColors c) { super(SIZE, SIZE); this.colors = c; hoverAnim.set(0); }
     public SelectBox() { this(SelectBoxColors.blue()); }
@@ -48,16 +51,28 @@ public class SelectBox extends TooltippingElement<SelectBox> {
             // 选中块按 GAP 内缩：边框与填充之间露出未选中时的背景色，不拿背景当填充物铺满。
             e.fill(ax + GAP, ay + GAP, ax + width - GAP, ay + height - GAP, colors.fill);
         }
+        int pa = (int) (pressAnim.get() * 0x50);
+        if (pa > 0) e.fill(ax + 1, ay + 1, ax + width - 1, ay + height - 1, (pa << 24) | 0xFFFFFF);
     }
 
     @Override public boolean mousePressed(MousePressedEvent e) {
         if (!visible || e.button() != 0) return false;
         if (InteractionManager.hovering(this, e.x(), e.y())) {
+            pending = true;
+            pressAnim.animate(0, 1, 60, Easing.EASE_IN_CUBIC);
+            return true;
+        }
+        return false;
+    }
+
+    @Override public boolean pressReleased(MouseReleasedEvent e, boolean hit) {
+        boolean wp = pending; pending = false; pressAnim.animate(1, 0, 100, Easing.EASE_OUT_CUBIC);
+        if (wp && hit) {
             selected = !selected;
             if (onClick != null) onClick.run();
             return true;
         }
-        return false;
+        return wp;
     }
 
     // 悬停动画由进入／离开事件驱动，命中查询不带副作用。

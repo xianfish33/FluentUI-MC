@@ -197,6 +197,7 @@ public class AutoCompleteBox extends FocusableElement<AutoCompleteBox> {
     private void showDropdown() {
         if (filtered.isEmpty()) return;
         open = true; hoveredIdx = -1;
+        if (dropdownOverlay != null) dropdownOverlay.pendingIdx = -1;
         if (dropdownOverlay == null) {
             dropdownOverlay = new DropdownOverlay(this);
             if (InteractionManager.active != null) InteractionManager.active.overlays().push(dropdownOverlay);
@@ -382,6 +383,7 @@ public class AutoCompleteBox extends FocusableElement<AutoCompleteBox> {
         private final Animator scrollAnim = new Animator();
         /** 收窄中：高度动画走完前面板继续挂载渲染，但不接受选中。 */
         private boolean closing;
+        private int pendingIdx = -1;
 
         /**
          * {@code close()} 关闭：面板自身不直接摘除节点，而是委托给属主 {@code closeDropdown()}，
@@ -470,6 +472,7 @@ public class AutoCompleteBox extends FocusableElement<AutoCompleteBox> {
                 boolean h = i == box.hoveredIdx;
                 int bg = h ? box.colors.ddHoverBg : 0x00000000;
                 if (bg != 0) e.fill(ax + 1, oy, ax + width - 1, ob, bg);
+                if (i == pendingIdx) e.fill(ax + 1, oy, ax + width - 1, ob, 0x603B82F6);
                 if (h) e.fill(ax + 1, oy, ax + 4, ob, box.colors.ddHighlight);
                 e.text(font, items.get(i), ax + PAD + 4, oy + (ITEM_H - font.lineHeight) / 2, box.colors.ddText);
             }
@@ -512,12 +515,21 @@ public class AutoCompleteBox extends FocusableElement<AutoCompleteBox> {
         @Override public boolean mousePressed(MousePressedEvent e) {
             if (closing) return false;
             if (e.button() != 0) return false;
-            // 先按事件坐标当场算，再读 box.hoveredIdx：选中的是这一刻光标压着的那一项。
+            // 先按事件坐标当场算，再读 box.hoveredIdx：记下的是这一刻光标压着的那一项，
+            // 动作在松开回传命中后执行。
             refreshHover(e.x(), e.y());
             if (box.hoveredIdx >= 0 && box.hoveredIdx < box.filteredItems().size()) {
-                box.selectFiltered(box.hoveredIdx); return true;
+                pendingIdx = box.hoveredIdx; return true;
             }
             if (shapeHit(e.x(), e.y())) return true;
+            return false;
+        }
+
+        @Override public boolean pressReleased(MouseReleasedEvent e, boolean hit) {
+            int pi = pendingIdx; pendingIdx = -1;
+            if (pi < 0) return false;
+            refreshHover(e.x(), e.y());
+            if (hit && box.hoveredIdx == pi) { box.selectFiltered(pi); return true; }
             return false;
         }
 

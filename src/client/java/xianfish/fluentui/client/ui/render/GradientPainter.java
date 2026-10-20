@@ -4,18 +4,15 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import org.joml.Matrix3x2fc;
 
 /**
- * 把图案编译成 {@link VertexPainter}：门面负责往清单里塞条目，本类只管顶点怎么写。
+ * 把图案编译成 {@link VertexPainter}。
  *
- * <p>自绘最先用到的图案是渐变，所以这里给一个横纵同时渐变的二维插值。四个角各给一个颜色，
- * 横纵两向同时变化。</p>
+ * <p>自绘最先用到的图案是渐变，所以这里给一个横纵同时渐变的二维插值。四个角各给一个颜色，横纵两向同时变化。</p>
  *
- * <p>默认交给光栅器插值：只吐四个顶点，颜色在线性空间里由显卡沿边插值算出来，CPU 这边
- * 一个中间值都不用算，也不用铺网格。</p>
+ * <p>默认交给光栅器插值，CPU只提交 4 个顶点</p>
  *
- * <p>需要数学意义上严格的双线性时用 {@link #bilinearMeshed}，它在 CPU 上把颜色算好再铺网格，
- * 顶点数是前者的平方。</p>
+ * <p>需要数学意义上严格的双线性时用 {@link #bilinearMeshed}，它在 CPU 上把颜色算好再铺网格，顶点数是前者的平方。</p>
  *
- * <p>每格吐四个顶点，顺序照抄 vanilla 的 {@code ColoredRectangleRenderState}：
+ * <p>每格吐四个顶点，顺序形同原版的 {@code ColoredRectangleRenderState}：
  * {@code (x0,y0) (x0,y1) (x1,y1) (x1,y0)}。因为 {@code RenderPipelines.GUI} 的顶点模式是
  * {@code QUADS}，顶点数不对会被当成坏数据丢掉。</p>
  */

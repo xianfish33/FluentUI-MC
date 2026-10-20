@@ -9,6 +9,7 @@ import xianfish.fluentui.client.ui.interaction.input.CharTypedEvent;
 import xianfish.fluentui.client.ui.interaction.input.HoverEvent;
 import xianfish.fluentui.client.ui.interaction.input.KeyPressedEvent;
 import xianfish.fluentui.client.ui.interaction.input.MousePressedEvent;
+import xianfish.fluentui.client.ui.interaction.input.MouseReleasedEvent;
 import xianfish.fluentui.client.ui.interaction.input.MouseScrolledEvent;
 import xianfish.fluentui.client.ui.interaction.InteractionManager;
 import java.util.function.Consumer;
@@ -36,6 +37,8 @@ public class Stepper extends FocusableElement<Stepper> {
     private Component[] fixedLabels;
     private int fixedIdx;
     private boolean leftHovered, rightHovered;
+    private int pendingSide = -1;
+    private final Animator pressAnim = new Animator();
     private double pct;
     private final Animator percentAnim = new Animator();
     private Consumer<Double> onChanged;
@@ -171,6 +174,21 @@ public class Stepper extends FocusableElement<Stepper> {
 
         boolean hov = InteractionManager.hovering(this, mx, my);
         e.fill(ax, ay, ax + width, ay + height, colors.bg);
+
+        int lx = ax, lw = BTN_W, rx = ax + width - BTN_W, rw = BTN_W;
+        // 左右钮悬停不在渲染期写：leftHovered / rightHovered 由 refreshHover（输入路径）独占写入，
+        // 这里只读字段画按钮高亮。
+        boolean lh = leftHovered, rh = rightHovered;
+
+        if (lh) e.fill(lx, ay + 1, lx + lw, ay + height - 1, colors.btnHover);
+        else e.fill(lx, ay + 1, lx + lw, ay + height - 1, colors.btnBg);
+        if (rh) e.fill(rx, ay + 1, rx + rw, ay + height - 1, colors.btnHover);
+        else e.fill(rx, ay + 1, rx + rw, ay + height - 1, colors.btnBg);
+        int pa = (int) (pressAnim.get() * 0x50);
+        if (pa > 0 && pendingSide == 0) e.fill(lx, ay + 1, lx + lw, ay + height - 1, (pa << 24) | 0xFFFFFF);
+        if (pa > 0 && pendingSide == 1) e.fill(rx, ay + 1, rx + rw, ay + height - 1, (pa << 24) | 0xFFFFFF);
+
+        // 边框在按钮底/悬停底/按下底之后描：这些底画在边框下面，不盖住描边。
         e.outline(ax, ay, width, height, focused ? colors.focusBorder : hov ? 0xFF777777 : colors.border);
 
         if (mode == Mode.PERCENT) {
@@ -180,18 +198,8 @@ public class Stepper extends FocusableElement<Stepper> {
             e.fill(ax, ay + height - BAR_H, ax + fillW, ay + height, colors.pctBar);
         }
 
-        int lx = ax, lw = BTN_W, rx = ax + width - BTN_W, rw = BTN_W;
-        // 左右钮悬停不在渲染期写：leftHovered / rightHovered 由 refreshHover（输入路径）独占写入，
-        // 这里只读字段画按钮高亮。
-        boolean lh = leftHovered, rh = rightHovered;
-
-        if (lh) e.fill(lx, ay + 1, lx + lw, ay + height - 1, colors.btnHover);
-        else e.fill(lx, ay + 1, lx + lw, ay + height - 1, colors.btnBg);
         int arrowOff = (height - font.lineHeight) / 2;
         e.text(font, "<", lx + PAD, ay + arrowOff, colors.btnText);
-
-        if (rh) e.fill(rx, ay + 1, rx + rw, ay + height - 1, colors.btnHover);
-        else e.fill(rx, ay + 1, rx + rw, ay + height - 1, colors.btnBg);
         e.text(font, ">", rx + PAD, ay + arrowOff, colors.btnText);
 
         int centerAreaX = lx + lw, centerAreaW = width - lw - rw;
@@ -246,9 +254,8 @@ public class Stepper extends FocusableElement<Stepper> {
         refreshHover(e.x(), e.y());
 
         int lx = ax, lw = BTN_W, rx = ax + width - BTN_W;
-        // 增减钮先结束编辑态再步进：编辑缓冲里的数字先提交进 value，步进在它之上进行。
-        if (e.x() >= lx && e.x() <= lx + lw) { endEditForStep(); dec(); return true; }
-        if (e.x() >= rx && e.x() <= rx + BTN_W) { endEditForStep(); inc(); return true; }
+        if (e.x() >= lx && e.x() <= lx + lw) { pendingSide = 0; pressAnim.animate(0, 1, 60, Easing.EASE_IN_CUBIC); return true; }
+        if (e.x() >= rx && e.x() <= rx + BTN_W) { pendingSide = 1; pressAnim.animate(0, 1, 60, Easing.EASE_IN_CUBIC); return true; }
 
         // 命中中央区即已由点击链转移算法领焦（Stepper 是 FocusableElement），
         // 这里只读 focused。
@@ -258,6 +265,22 @@ public class Stepper extends FocusableElement<Stepper> {
             startEdit();
         }
         return true;
+    }
+
+    @Override public boolean pressReleased(MouseReleasedEvent e, boolean hit) {
+        int side = pendingSide; pendingSide = -1; pressAnim.animate(1, 0, 100, Easing.EASE_OUT_CUBIC);
+        if (side < 0) return false;
+        if (!hit) return true;
+        // 松开点仍须落在这颗钮上：元素级 hit 只保证还在本控件内，哪颗钮按释放坐标定。
+        int ax = getAbsoluteX(), ay = getAbsoluteY();
+        int lx = ax, lw = BTN_W, rx = ax + width - BTN_W;
+        if (side == 0 && e.x() >= lx && e.x() <= lx + lw && e.y() >= ay && e.y() <= ay + height) {
+            endEditForStep(); dec(); return true;
+        }
+        if (side == 1 && e.x() >= rx && e.x() <= rx + BTN_W && e.y() >= ay && e.y() <= ay + height) {
+            endEditForStep(); inc(); return true;
+        }
+        return false;
     }
 
     @Override public boolean mouseScrolled(MouseScrolledEvent e) {

@@ -8,6 +8,7 @@ import xianfish.fluentui.client.ui.element.Element;
 import xianfish.fluentui.client.ui.interaction.InteractionManager;
 import xianfish.fluentui.client.ui.interaction.input.HoverEvent;
 import xianfish.fluentui.client.ui.interaction.input.MousePressedEvent;
+import xianfish.fluentui.client.ui.interaction.input.MouseReleasedEvent;
 import xianfish.fluentui.client.ui.util.TextDrawUtil;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +42,7 @@ public class MessageFlyout extends Element<MessageFlyout> {
     private final List<Element<?>> actions = new ArrayList<>();
     private boolean open;
     private boolean closeHovered;
+    private boolean pendingClose;
     private final Animator slideAnim = new Animator();
     private final Animator closeAnim = new Animator();
     private Runnable onDismiss;
@@ -116,6 +118,7 @@ public class MessageFlyout extends Element<MessageFlyout> {
         if (InteractionManager.active != null) InteractionManager.active.releasePressOwnerIfOwnerIs(this);
         slideAnim.set(0);
         closeHovered = false;
+        pendingClose = false;
         if (onDismiss != null) onDismiss.run();
         if (InteractionManager.active != null) InteractionManager.active.overlays().remove(this);
     }
@@ -189,7 +192,7 @@ public class MessageFlyout extends Element<MessageFlyout> {
         int cx = closeGlyphX(), cy = closeGlyphY();
         // 关钮悬停不在渲染期写：closeHovered 及其触发的 closeAnim 过渡由 refreshHover
         // （输入路径）独占驱动，这里只按 closeAnim 当前值取透明度画 ×。
-        int ca = 0x80 + (int)(closeAnim.get() * 0x7F);
+        int ca = pendingClose ? 0xFF : 0x80 + (int)(closeAnim.get() * 0x7F);
         TextDrawUtil.draw(e, font, CLOSE_GLYPH, cx, cy, (ca << 24) | 0xFFFFFF, CLOSE_SCALE);
 
         e.disableScissor();
@@ -253,11 +256,22 @@ public class MessageFlyout extends Element<MessageFlyout> {
         int cx = closeGlyphX(), cy = closeGlyphY();
         int gw = TextDrawUtil.scaledWidth(font, CLOSE_GLYPH, CLOSE_SCALE), gh = TextDrawUtil.scaledHeight(font, CLOSE_SCALE);
         if (e.x() >= cx && e.x() <= cx + gw
-            && e.y() >= cy && e.y() <= cy + gh) { hide(); return true; }
+            && e.y() >= cy && e.y() <= cy + gh) { pendingClose = true; return true; }
         for (Element<?> a : children()) {
             if (Element.isHit(a, e.x(), e.y()) && a.mousePressed(e)) return true;
         }
         return false;
+    }
+
+    @Override public boolean pressReleased(MouseReleasedEvent e, boolean hit) {
+        boolean pc = pendingClose; pendingClose = false;
+        if (pc && hit) {
+            // 松开点仍须落在关闭钮字形上：元素级 hit 只保证还在浮层内，字形矩形按释放坐标再比一次。
+            int cx = closeGlyphX(), cy = closeGlyphY();
+            int gw = TextDrawUtil.scaledWidth(font, CLOSE_GLYPH, CLOSE_SCALE), gh = TextDrawUtil.scaledHeight(font, CLOSE_SCALE);
+            if (e.x() >= cx && e.x() <= cx + gw && e.y() >= cy && e.y() <= cy + gh) { hide(); return true; }
+        }
+        return pc;
     }
 
     /** {@code close()} 关闭；{@code dismiss} 为兼容别名，优先使用 {@link #close()}。 */
